@@ -1,0 +1,8 @@
+node_modules
+dist
+test
+RDI_Documentation_Package
+.git
+.claude
+npm-debug.log*
+*.md
