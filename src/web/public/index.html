@@ -40,6 +40,21 @@
               placeholder="10.0.0.0/24&#10;192.168.1.50&#10;redis.example.com"
             ></textarea>
             <p class="hint">Hostnames are resolved via DNS; all resolved addresses are scanned.</p>
+            <div class="csv-upload-row">
+              <label for="csv-upload" class="btn secondary">Upload CSV</label>
+              <input
+                type="file"
+                id="csv-upload"
+                accept=".csv,text/csv"
+                style="display: none"
+              />
+              <span id="csv-upload-status" class="hint"></span>
+            </div>
+            <p class="hint">
+              CSV replaces the list above — one target per line: <code>host</code> or
+              <code>host,port</code>. A header row is fine. Credentials aren't supported in the
+              file yet; use the fields below for all uploaded targets.
+            </p>
           </div>
         </div>
         <div class="field-row">

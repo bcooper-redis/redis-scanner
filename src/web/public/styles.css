@@ -154,6 +154,17 @@ p.lead {
   margin: 0.15rem 0 0;
 }
 
+.hint.error {
+  color: var(--error);
+}
+
+.csv-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
 button,
 .btn {
   display: inline-block;
