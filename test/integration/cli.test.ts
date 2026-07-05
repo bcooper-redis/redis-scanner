@@ -57,7 +57,7 @@ describe('rscan CLI', () => {
     it('finds Redis 8.x and prints a table', () => {
       const { stdout, status } = rscan('scan', '-c', '127.0.0.1/32', '-p', REDIS_8_PORT);
       expect(status).toBe(0);
-      expect(stdout).toContain('redis');
+      expect(stdout).toContain('redis OSS');
       expect(stdout).toContain('127.0.0.1');
       expect(stdout).toContain(REDIS_8_PORT);
       expect(stdout).toContain('open');
@@ -72,7 +72,7 @@ describe('rscan CLI', () => {
     it('accepts a hostname target and resolves it before scanning', () => {
       const { stdout, status } = rscan('scan', '-c', 'localhost', '-p', REDIS_8_PORT);
       expect(status).toBe(0);
-      expect(stdout).toContain('redis');
+      expect(stdout).toContain('redis OSS');
       expect(stdout).toContain('127.0.0.1');
     });
 
@@ -90,7 +90,7 @@ describe('rscan CLI', () => {
         '-p',
         `${REDIS_8_PORT},${VALKEY_PORT}`,
       );
-      expect(stdout).toContain('redis');
+      expect(stdout).toContain('redis OSS');
       expect(stdout).toContain('valkey');
     });
   });

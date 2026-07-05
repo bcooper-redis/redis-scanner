@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { productDisplay } from '../../src/types/index';
 import type { DiscoveryResult, ScanConfig, AuthCredentials } from '../../src/types/index';
 
 describe('DiscoveryResult', () => {
@@ -63,6 +64,19 @@ describe('ScanConfig', () => {
       concurrency: 100,
     };
     expect(config.ports).toHaveLength(2);
+  });
+});
+
+describe('productDisplay', () => {
+  it('labels OSS Redis as "redis OSS"', () => {
+    expect(productDisplay('redis')).toBe('redis OSS');
+  });
+
+  it('leaves valkey, keydb, enterprise, and unknown unchanged', () => {
+    expect(productDisplay('valkey')).toBe('valkey');
+    expect(productDisplay('keydb')).toBe('keydb');
+    expect(productDisplay('enterprise')).toBe('enterprise');
+    expect(productDisplay('unknown')).toBe('unknown');
   });
 });
 

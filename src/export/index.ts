@@ -1,3 +1,4 @@
+import { productDisplay } from '../types';
 import type { DiscoveryResult } from '../types';
 
 const CSV_HEADERS = [
@@ -38,7 +39,7 @@ function toRow(r: DiscoveryResult): string {
     r.host,
     String(r.port),
     String(r.tls),
-    r.product,
+    productDisplay(r.product),
     r.version ?? '',
     r.anonymousStatus,
     r.authenticatedStatus,

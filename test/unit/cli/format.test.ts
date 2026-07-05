@@ -62,11 +62,18 @@ describe('formatTable', () => {
     const out = formatTable([OPEN]);
     expect(out).toContain('10.0.0.1');
     expect(out).toContain('6379');
-    expect(out).toContain('redis');
+    expect(out).toContain('redis OSS');
     expect(out).toContain('8.0.0');
     expect(out).toContain('open');
     expect(out).toContain('master');
     expect(out).toContain('3ms');
+  });
+
+  it("labels OSS Redis as 'redis OSS' but leaves other products alone", () => {
+    expect(formatTable([{ ...OPEN, product: 'redis' }])).toContain('redis OSS');
+    expect(formatTable([{ ...OPEN, product: 'valkey' }])).toContain('valkey');
+    expect(formatTable([{ ...OPEN, product: 'enterprise' }])).toContain('enterprise');
+    expect(formatTable([{ ...OPEN, product: 'enterprise' }])).not.toContain('enterprise OSS');
   });
 
   it("shows 'no' TLS for plain connection", () => {

@@ -46,6 +46,11 @@
     errorBanner.textContent = '';
   }
 
+  // Mirrors src/types/index.ts's productDisplay so the web UI and CLI agree.
+  function productDisplay(product) {
+    return product === 'redis' ? 'redis OSS' : product;
+  }
+
   // Mirrors src/cli/format.ts's authDisplay so the web UI and CLI agree.
   function authDisplay(r) {
     if (r.anonymousStatus === 'open') {
@@ -124,7 +129,7 @@
     cell(r.host);
     cell(String(r.port));
     cell(r.tls ? 'yes' : 'no');
-    cell(r.product);
+    cell(productDisplay(r.product));
     cell(r.version ?? '—');
 
     const authTd = document.createElement('td');

@@ -1,5 +1,10 @@
 export type RedisProduct = 'redis' | 'valkey' | 'keydb' | 'enterprise' | 'unknown';
 
+/** Human-readable product label — distinguishes OSS Redis from Enterprise. */
+export function productDisplay(product: RedisProduct): string {
+  return product === 'redis' ? 'redis OSS' : product;
+}
+
 export type AnonymousStatus = 'open' | 'auth_required' | 'unreachable' | 'error';
 
 export type AuthenticatedStatus = 'authenticated' | 'auth_failed' | 'not_attempted';

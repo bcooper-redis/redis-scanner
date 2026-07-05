@@ -1,3 +1,4 @@
+import { productDisplay } from '../types';
 import type { DiscoveryResult } from '../types';
 
 function authDisplay(r: DiscoveryResult): string {
@@ -41,7 +42,7 @@ function toRow(r: DiscoveryResult): Row {
     host: r.host,
     port: String(r.port),
     tls: r.tls ? 'yes' : 'no',
-    product: r.product,
+    product: productDisplay(r.product),
     version: r.version ?? '—',
     auth: authDisplay(r),
     role: r.inventory?.role ?? '—',

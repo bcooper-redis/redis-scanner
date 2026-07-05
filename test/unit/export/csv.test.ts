@@ -65,11 +65,18 @@ describe('toCsv', () => {
     const csv = toCsv([OPEN]);
     expect(csv).toContain('10.0.0.1');
     expect(csv).toContain('6379');
-    expect(csv).toContain('redis');
+    expect(csv).toContain('redis OSS');
     expect(csv).toContain('8.0.0');
     expect(csv).toContain('open');
     expect(csv).toContain('master');
     expect(csv).toContain('3600');
+  });
+
+  it("labels OSS Redis as 'redis OSS' but leaves other products alone", () => {
+    expect(toCsv([{ ...OPEN, product: 'redis' }])).toContain('redis OSS');
+    expect(toCsv([{ ...OPEN, product: 'valkey' }])).toContain('valkey');
+    expect(toCsv([{ ...OPEN, product: 'enterprise' }])).toContain('enterprise');
+    expect(toCsv([{ ...OPEN, product: 'enterprise' }])).not.toContain('enterprise OSS');
   });
 
   it('leaves inventory fields empty when inventory is null', () => {

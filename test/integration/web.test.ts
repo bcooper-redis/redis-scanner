@@ -503,7 +503,7 @@ describe('GET /api/export/csv', () => {
     state.finishScan([FIXTURE]);
     const text = await (await fetch(`${server.url}/api/export/csv`)).text();
     expect(text).toContain('127.0.0.1');
-    expect(text).toContain('redis');
+    expect(text).toContain('redis OSS');
   });
 
   it('returns only header when results are empty', async () => {
