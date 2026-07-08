@@ -31,6 +31,7 @@ function buildInventory(probe: ProbeResult): Inventory | null {
     modules: probe.modules,
     clusterInfo: probe.clusterInfo,
     runId: probe.runId,
+    connectedClients: probe.connectedClients,
   };
 }
 

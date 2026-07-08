@@ -21,6 +21,7 @@ export interface ParsedInfo {
   memory: MemoryInfo;
   keyspace: KeyspaceDb[];
   runId: string | null;
+  connectedClients: number | null;
 }
 
 /**
@@ -41,6 +42,7 @@ export function parseInfo(raw: string): ParsedInfo {
     memory: parseMemory(fields),
     keyspace: parseKeyspace(fields),
     runId: fields.get('run_id') ?? null,
+    connectedClients: parseOptionalInt(fields.get('connected_clients')),
   };
 }
 
@@ -146,6 +148,8 @@ function parseMemory(fields: Map<string, string>): MemoryInfo {
     // maxmemory:0 means "no limit" — surface as null rather than a misleading 0-byte cap.
     maxMemoryBytes: maxMemory === 0 ? null : maxMemory,
     maxMemoryPolicy: fields.get('maxmemory_policy') ?? null,
+    totalSystemMemoryBytes: parseOptionalInt(fields.get('total_system_memory')),
+    usedMemoryPeakBytes: parseOptionalInt(fields.get('used_memory_peak')),
   };
 }
 

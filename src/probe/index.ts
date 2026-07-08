@@ -34,6 +34,7 @@ export interface ProbeResult {
   modules: ModuleInfo[];
   clusterInfo: ClusterInfo | null;
   runId: ParsedInfo['runId'];
+  connectedClients: ParsedInfo['connectedClients'];
   rawInfo: string | null;
   tlsCertificate: TlsCertificateInfo | null;
 }
@@ -91,11 +92,18 @@ const UNKNOWN_INFO: Omit<
     masterPort: null,
     masterLinkStatus: null,
   },
-  memory: { usedMemoryBytes: null, maxMemoryBytes: null, maxMemoryPolicy: null },
+  memory: {
+    usedMemoryBytes: null,
+    maxMemoryBytes: null,
+    maxMemoryPolicy: null,
+    totalSystemMemoryBytes: null,
+    usedMemoryPeakBytes: null,
+  },
   keyspace: [],
   modules: [],
   clusterInfo: null,
   runId: null,
+  connectedClients: null,
   rawInfo: null,
 };
 

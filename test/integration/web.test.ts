@@ -69,11 +69,18 @@ const FIXTURE: DiscoveryResult = {
       masterPort: null,
       masterLinkStatus: null,
     },
-    memory: { usedMemoryBytes: null, maxMemoryBytes: null, maxMemoryPolicy: null },
+    memory: {
+      usedMemoryBytes: null,
+      maxMemoryBytes: null,
+      maxMemoryPolicy: null,
+      totalSystemMemoryBytes: null,
+      usedMemoryPeakBytes: null,
+    },
     keyspace: [],
     modules: [],
     clusterInfo: null,
     runId: null,
+    connectedClients: null,
   },
   tlsCertificate: null,
 };
@@ -517,6 +524,50 @@ describe('GET /api/export/csv', () => {
   it('includes Content-Disposition attachment header', async () => {
     const r = await fetch(`${server.url}/api/export/csv`);
     expect(r.headers.get('content-disposition')).toContain('attachment');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/export/ini
+// ---------------------------------------------------------------------------
+
+describe('GET /api/export/ini', () => {
+  it('returns an INI file with the correct headers', async () => {
+    state.finishScan([FIXTURE]);
+    const r = await fetch(`${server.url}/api/export/ini`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-disposition')).toContain('attachment');
+    expect(r.headers.get('content-disposition')).toContain('.ini');
+  });
+
+  it('includes a section keyed by host:port with host/port/tls fields', async () => {
+    state.finishScan([FIXTURE]);
+    const text = await (await fetch(`${server.url}/api/export/ini`)).text();
+    expect(text).toContain(`[${FIXTURE.host}:${FIXTURE.port}]`);
+    expect(text).toContain(`host        = ${FIXTURE.host}`);
+    expect(text).toContain(`port        = ${FIXTURE.port}`);
+  });
+
+  it('returns no sections when results are empty', async () => {
+    const text = await (await fetch(`${server.url}/api/export/ini`)).text();
+    expect(text).not.toContain('[');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/export/xlsx
+// ---------------------------------------------------------------------------
+
+describe('GET /api/export/xlsx', () => {
+  it('returns a zip-signed .xlsx with the correct headers', async () => {
+    state.finishScan([FIXTURE]);
+    const r = await fetch(`${server.url}/api/export/xlsx`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toContain('spreadsheetml');
+    expect(r.headers.get('content-disposition')).toContain('attachment');
+    expect(r.headers.get('content-disposition')).toContain('.xlsx');
+    const bytes = Buffer.from(await r.arrayBuffer());
+    expect(bytes.readUInt32LE(0)).toBe(0x04034b50); // ZIP local file header signature
   });
 });
 

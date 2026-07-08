@@ -32,6 +32,8 @@ export interface MemoryInfo {
   usedMemoryBytes: number | null;
   maxMemoryBytes: number | null;
   maxMemoryPolicy: string | null;
+  totalSystemMemoryBytes: number | null;
+  usedMemoryPeakBytes: number | null;
 }
 
 export interface KeyspaceDb {
@@ -68,6 +70,7 @@ export interface Inventory {
   clusterInfo: ClusterInfo | null;
   /** INFO's run_id — unique per running redis-server process. */
   runId: string | null;
+  connectedClients: number | null;
 }
 
 export interface TlsCertificateInfo {

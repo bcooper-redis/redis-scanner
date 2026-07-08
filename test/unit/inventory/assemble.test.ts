@@ -11,7 +11,13 @@ const NO_REPLICATION = {
   masterPort: null,
   masterLinkStatus: null,
 };
-const NO_MEMORY = { usedMemoryBytes: null, maxMemoryBytes: null, maxMemoryPolicy: null };
+const NO_MEMORY = {
+  usedMemoryBytes: null,
+  maxMemoryBytes: null,
+  maxMemoryPolicy: null,
+  totalSystemMemoryBytes: null,
+  usedMemoryPeakBytes: null,
+};
 
 const SELF_SIGNED_CERT = {
   subject: 'redis.example.com',
@@ -41,11 +47,18 @@ const OPEN_PROBE: ProbeResult = {
     masterPort: null,
     masterLinkStatus: null,
   },
-  memory: { usedMemoryBytes: 1048576, maxMemoryBytes: null, maxMemoryPolicy: 'noeviction' },
+  memory: {
+    usedMemoryBytes: 1048576,
+    maxMemoryBytes: null,
+    maxMemoryPolicy: 'noeviction',
+    totalSystemMemoryBytes: null,
+    usedMemoryPeakBytes: null,
+  },
   keyspace: [{ db: 0, keys: 5, expires: 1, avgTtlMs: 0 }],
   modules: [{ name: 'search', version: 20811, path: '/usr/lib/redis/modules/redisearch.so' }],
   clusterInfo: null,
   runId: 'a3f92c1e2b8d4f1a9c7e6d5b4a3f92c1e2b8d4f1',
+  connectedClients: 5,
   rawInfo: '# Server\nredis_version:8.0.0\n',
 };
 
@@ -67,6 +80,7 @@ const AUTH_PROBE: ProbeResult = {
   modules: [],
   clusterInfo: null,
   runId: null,
+  connectedClients: null,
   rawInfo: null,
 };
 
@@ -90,6 +104,7 @@ const NOT_REDIS_PROBE: ProbeResult = {
   modules: [],
   clusterInfo: null,
   runId: null,
+  connectedClients: null,
   rawInfo: null,
 };
 
