@@ -5,3 +5,7 @@ dist/
 .env
 coverage/
 .DS_Store
+
+# Original design docs from project kickoff — kept locally for reference,
+# not published to the repo.
+RDI_Documentation_Package/
