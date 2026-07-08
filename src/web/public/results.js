@@ -15,6 +15,12 @@
   const exportCsvLink = document.getElementById('export-csv-link');
   const exportIniLink = document.getElementById('export-ini-link');
   const exportXlsxLink = document.getElementById('export-xlsx-link');
+  const exportIniCredsBtn = document.getElementById('export-ini-creds-btn');
+  const exportIniCredsStatus = document.getElementById('export-ini-creds-status');
+  const iniCredsFileInput = document.getElementById('ini-creds-file-input');
+  const iniCredsWarningDialog = document.getElementById('ini-creds-warning-dialog');
+  const iniCredsProceedBtn = document.getElementById('ini-creds-proceed-btn');
+  const iniCredsCancelBtn = document.getElementById('ini-creds-cancel-btn');
   const pauseResumeBtn = document.getElementById('pause-resume-btn');
   const stopBtn = document.getElementById('stop-btn');
   const restartBtn = document.getElementById('restart-btn');
@@ -84,6 +90,204 @@
       seenRunIds.add(runId);
       return true;
     });
+  }
+
+  // Mirrors src/scanner/credentialCsv.ts's parseCsvLine — needed because a
+  // password can contain literally any character, including a comma.
+  function parseCsvLine(line) {
+    const fields = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (line[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        fields.push(field);
+        field = '';
+      } else {
+        field += c;
+      }
+    }
+    fields.push(field);
+    return fields;
+  }
+
+  // Mirrors src/scanner/credentialCsv.ts's parseCredentialCsv. Error
+  // messages only ever reference host/port — never username/password.
+  function parseCredentialCsv(text) {
+    const lines = text
+      .split(/\r\n|\r|\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const rows = [];
+    const errors = [];
+
+    let startIdx = 0;
+    if (lines.length > 0) {
+      const firstCell = (parseCsvLine(lines[0])[0] || '').trim();
+      if (/^(host|hostname|ip|ip ?address|target)s?$/i.test(firstCell)) {
+        startIdx = 1;
+      }
+    }
+
+    for (let i = startIdx; i < lines.length; i++) {
+      const lineNum = i + 1;
+      const fields = parseCsvLine(lines[i]).map((f) => f.trim());
+      const host = fields[0];
+      const portRaw = fields[1];
+      const username = fields[2];
+      const password = fields[3];
+
+      if (!host) {
+        errors.push(`line ${lineNum}: missing host`);
+        continue;
+      }
+
+      const port = Number(portRaw);
+      if (!portRaw || !Number.isInteger(port) || port < 1 || port > 65535) {
+        errors.push(`line ${lineNum} (${host}): invalid port "${portRaw || ''}"`);
+        continue;
+      }
+
+      rows.push({
+        host,
+        port,
+        username: username || undefined,
+        password: password || undefined,
+      });
+    }
+
+    return { rows, errors };
+  }
+
+  // Mirrors src/scanner/credentialIni.ts's parseCredentialIni — parses the
+  // exact format toIniText() below (and the server-side toIni()) produces.
+  // The section header ([host:port]) is never parsed for host/port — only
+  // the explicit host = / port = lines inside it are. Error messages only
+  // ever reference host/port — never username/password.
+  function parseCredentialIni(text) {
+    const lines = text.split(/\r\n|\r|\n/);
+
+    const rows = [];
+    const errors = [];
+
+    let sectionNum = 0;
+    let inSection = false;
+    let host, port, username, password;
+
+    function finalizeSection() {
+      if (!inSection) return;
+      sectionNum++;
+      if (!host) {
+        errors.push(`section ${sectionNum}: missing host`);
+      } else {
+        const portNum = Number(port);
+        if (!port || !Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+          errors.push(`section ${sectionNum} (${host}): invalid port "${port || ''}"`);
+        } else {
+          rows.push({
+            host,
+            port: portNum,
+            username: username || undefined,
+            password: password || undefined,
+          });
+        }
+      }
+      inSection = false;
+      host = port = username = password = undefined;
+    }
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith(';') || line.startsWith('#')) continue;
+
+      if (line.startsWith('[') && line.endsWith(']')) {
+        finalizeSection();
+        inSection = true;
+        continue;
+      }
+
+      if (!inSection) continue;
+
+      const eq = line.indexOf('=');
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim().toLowerCase();
+      const value = line.slice(eq + 1).trim();
+
+      if (key === 'host') host = value;
+      else if (key === 'port') port = value;
+      else if (key === 'username') username = value;
+      else if (key === 'password') password = value;
+    }
+    finalizeSection();
+
+    return { rows, errors };
+  }
+
+  const INI_KEY_WIDTH = 12;
+
+  function iniField(key, value, commented) {
+    const prefix = commented ? '; ' : '';
+    return `${prefix}${key.padEnd(INI_KEY_WIDTH)}= ${value}`;
+  }
+
+  // Mirrors src/export/index.ts's toIni()/toIniSection()/iniField(), extended
+  // with an optional host:port -> {username, password} lookup so a
+  // separately re-provided credentials file can be merged in client-side.
+  // The server-side version never does this — the server never holds
+  // credentials past the request that used them, and this function exists
+  // specifically so that stays true: the merge happens only here, in the
+  // browser, from a file the user re-selects, never sent to or stored by
+  // the server.
+  function toIniText(results, credentialsByHostPort) {
+    const header =
+      '; Generated by Redis Discovery from scan results.\n' +
+      '; Fill in username/password (and ca_cert/client_cert/client_key for mTLS)\n' +
+      '; before running osstats against these targets.\n';
+
+    function toIniSection(r) {
+      const creds = credentialsByHostPort.get(`${r.host}:${r.port}`);
+      return [
+        `[${r.host}:${r.port}]`,
+        iniField('host', r.host),
+        iniField('port', String(r.port)),
+        iniField('tls', r.tls ? 'true' : 'false'),
+        '; Username in case ACL access in enabled',
+        iniField('username', (creds && creds.username) || ''),
+        '; Password that applies either in db or user (ACL)',
+        iniField('password', (creds && creds.password) || ''),
+        iniField('ca_cert', '/path/to/ca.crt', true),
+        iniField('client_cert', '/path/to/client.crt', true),
+        iniField('client_key', '/path/to/client.key', true),
+      ].join('\n');
+    }
+
+    return header + '\n' + results.map(toIniSection).join('\n\n') + '\n';
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   // Maps "host:port" -> the OTHER host:port strings sharing its run_id, for
@@ -377,7 +581,9 @@
     } else if (state.status === 'done' || state.status === 'stopped') {
       const found = `${visibleResults.length} instance${visibleResults.length === 1 ? '' : 's'} found`;
       statusDetail.textContent =
-        hiddenCount > 0 ? `${found} (${hiddenCount} duplicate${hiddenCount === 1 ? '' : 's'} hidden)` : found;
+        hiddenCount > 0
+          ? `${found} (${hiddenCount} duplicate${hiddenCount === 1 ? '' : 's'} hidden)`
+          : found;
     } else {
       statusDetail.textContent = '';
     }
@@ -522,11 +728,84 @@
 
   stopBtn.addEventListener('click', () => void postControlAction('/api/scan/stop', stopBtn));
 
-  restartBtn.addEventListener('click', () =>
-    void postControlAction('/api/scan/restart', restartBtn),
+  restartBtn.addEventListener(
+    'click',
+    () => void postControlAction('/api/scan/restart', restartBtn),
   );
 
   document.getElementById('refresh-btn').addEventListener('click', () => fetchResults());
+
+  exportIniCredsBtn.addEventListener('click', () => {
+    exportIniCredsStatus.textContent = '';
+    exportIniCredsStatus.classList.remove('error');
+    iniCredsWarningDialog.showModal();
+  });
+
+  iniCredsCancelBtn.addEventListener('click', () => {
+    iniCredsWarningDialog.close();
+  });
+
+  iniCredsProceedBtn.addEventListener('click', () => {
+    iniCredsWarningDialog.close();
+    iniCredsFileInput.click();
+  });
+
+  iniCredsFileInput.addEventListener('change', () => {
+    const file = iniCredsFileInput.files[0];
+    if (!file) return;
+
+    if (!lastState || lastState.results.length === 0) {
+      iniCredsFileInput.value = '';
+      exportIniCredsStatus.textContent = 'No results to export yet.';
+      exportIniCredsStatus.classList.add('error');
+      return;
+    }
+
+    const isIni = /\.ini$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || '');
+      iniCredsFileInput.value = ''; // lets re-uploading the same filename fire 'change' again
+      const { rows, errors } = isIni ? parseCredentialIni(text) : parseCredentialCsv(text);
+
+      if (rows.length === 0) {
+        exportIniCredsStatus.textContent = `No valid credentials found in ${file.name}.`;
+        exportIniCredsStatus.classList.add('error');
+        return;
+      }
+
+      const credentialsByHostPort = new Map();
+      for (const row of rows) {
+        credentialsByHostPort.set(`${row.host}:${row.port}`, row);
+      }
+
+      const visibleResults = excludeDuplicatesCheckbox.checked
+        ? dedupeByRunId(lastState.results)
+        : lastState.results;
+      const matched = visibleResults.filter((r) =>
+        credentialsByHostPort.has(`${r.host}:${r.port}`),
+      ).length;
+
+      downloadText(
+        'redis-discovery-export-with-credentials.ini',
+        toIniText(visibleResults, credentialsByHostPort),
+      );
+
+      let status = `Matched credentials for ${matched} of ${visibleResults.length} result${visibleResults.length === 1 ? '' : 's'} from ${file.name}.`;
+      exportIniCredsStatus.classList.remove('error');
+      if (errors.length > 0) {
+        status += ` ${errors.length} row${errors.length === 1 ? '' : 's'} in that file were skipped: ${errors.join('; ')}`;
+        exportIniCredsStatus.classList.add('error');
+      }
+      exportIniCredsStatus.textContent = status;
+    };
+    reader.onerror = () => {
+      iniCredsFileInput.value = '';
+      exportIniCredsStatus.textContent = `Could not read ${file.name}.`;
+      exportIniCredsStatus.classList.add('error');
+    };
+    reader.readAsText(file);
+  });
 
   fetchResults();
 })();

@@ -92,10 +92,20 @@
 
       <div class="export-actions">
         <span class="targets-label">Export</span>
-        <a id="export-csv-link" href="/api/export/csv" class="btn secondary" download hx-boost="false"
+        <a
+          id="export-csv-link"
+          href="/api/export/csv"
+          class="btn secondary"
+          download
+          hx-boost="false"
           >CSV</a
         >
-        <a id="export-ini-link" href="/api/export/ini" class="btn secondary" download hx-boost="false"
+        <a
+          id="export-ini-link"
+          href="/api/export/ini"
+          class="btn secondary"
+          download
+          hx-boost="false"
           >INI</a
         >
         <a
@@ -106,8 +116,32 @@
           hx-boost="false"
           >XLSX</a
         >
+        <button type="button" id="export-ini-creds-btn" class="secondary">
+          INI with credentials
+        </button>
+        <span id="export-ini-creds-status" class="hint"></span>
       </div>
+      <input
+        type="file"
+        id="ini-creds-file-input"
+        accept=".csv,text/csv,.ini"
+        style="display: none"
+      />
     </main>
+
+    <dialog id="ini-creds-warning-dialog">
+      <h3>Export INI with credentials</h3>
+      <p class="hint" style="margin-bottom: 1rem">
+        This generates an INI file with the username/password from the CSV or INI file you select
+        next, in plain text, matched to the results below by host and port. Nothing is sent to the
+        server — the file you select is read and merged entirely in this browser. Handle the
+        downloaded file with the same care as the file you're about to select.
+      </p>
+      <div class="actions">
+        <button type="button" id="ini-creds-proceed-btn">Proceed</button>
+        <button type="button" class="secondary" id="ini-creds-cancel-btn">Cancel</button>
+      </div>
+    </dialog>
 
     <dialog id="auth-dialog">
       <h3>Authenticate <span id="auth-target"></span></h3>
