@@ -58,9 +58,41 @@ describe('formatTable', () => {
 
   it('includes all column headers', () => {
     const out = formatTable([OPEN]);
-    for (const hdr of ['HOST', 'PORT', 'TLS', 'PRODUCT', 'VERSION', 'AUTH', 'ROLE', 'LATENCY']) {
+    for (const hdr of [
+      'HOST',
+      'PORT',
+      'TLS',
+      'PRODUCT',
+      'VERSION',
+      'AUTH',
+      'ROLE',
+      'MEMORY',
+      'LATENCY',
+    ]) {
       expect(out).toContain(hdr);
     }
+  });
+
+  it('shows used/max memory as "used / max"', () => {
+    const r: DiscoveryResult = {
+      ...OPEN,
+      inventory: {
+        ...OPEN.inventory!,
+        memory: { ...OPEN.inventory!.memory, usedMemoryBytes: 1048576, maxMemoryBytes: 2097152 },
+      },
+    };
+    expect(formatTable([r])).toContain('1.0 MB / 2.0 MB');
+  });
+
+  it('shows "no limit" when maxMemoryBytes is null', () => {
+    const r: DiscoveryResult = {
+      ...OPEN,
+      inventory: {
+        ...OPEN.inventory!,
+        memory: { ...OPEN.inventory!.memory, usedMemoryBytes: 1048576, maxMemoryBytes: null },
+      },
+    };
+    expect(formatTable([r])).toContain('1.0 MB / no limit');
   });
 
   it('includes a divider row', () => {

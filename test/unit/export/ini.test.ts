@@ -94,7 +94,7 @@ describe('toIni', () => {
     expect(ini).toContain('tls         = true');
   });
 
-  it('always leaves username and password blank — Redis Scanner never retains credentials', () => {
+  it('always leaves username and password blank — Redis Discovery never retains credentials', () => {
     const ini = toIni([OPEN]);
     const lines = ini.split('\n');
     expect(lines).toContain('username    = ');

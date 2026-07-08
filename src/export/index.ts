@@ -3,34 +3,57 @@ import type { DiscoveryResult } from '../types';
 import { buildXlsxWorkbook } from './xlsx';
 import type { CellValue } from './xlsx';
 
+// Every field DiscoveryResult exposes (including nested inventory/cert
+// fields) gets a column here, even ones the Results table/CSV summary
+// columns don't show — this is meant to be a complete dump, not a curated
+// view. Array fields (replicas, keyspace, modules) get both a summary column
+// (matching what the table shows) and a "Details" column serializing every
+// entry, since CSV can't give a variable-length array its own columns.
+// inventory.redisVersion is deliberately not a separate column — it's always
+// identical to the top-level Version column (assembleResult sets both from
+// the same probe.version), so a second copy would just be a confusing dupe.
 const CSV_HEADERS = [
   'Host',
   'Port',
   'TLS',
   'Product',
   'Version',
+  'Auth Required',
   'Auth Status',
   'Authenticated Status',
   'Role',
   'Mode',
   'OS',
   'Uptime (s)',
+  'Connected Clients',
   'Latency (ms)',
   'Used Memory (bytes)',
+  'Max Memory (bytes)',
+  'Used Memory Peak (bytes)',
+  'Total System Memory (bytes)',
   'Max Memory Policy',
   'Connected Replicas',
+  'Replica Details',
   'Master Host',
   'Master Port',
   'Master Link Status',
   'Total Keys',
+  'Keyspace Detail',
   'Modules',
+  'Module Details',
   'Cluster State',
+  'Cluster Enabled',
+  'Cluster Slots Assigned',
+  'Cluster Known Nodes',
+  'Cluster Size',
   'Run ID',
   'Cert Subject',
   'Cert Issuer',
+  'Cert Valid From',
   'Cert Valid To',
   'Cert Self-Signed',
   'Cert Trusted',
+  'Cert Fingerprint (SHA-256)',
 ];
 
 function escape(val: string): string {
@@ -45,35 +68,75 @@ function totalKeys(r: DiscoveryResult): string {
   return String(r.inventory.keyspace.reduce((sum, db) => sum + db.keys, 0));
 }
 
+function replicaDetails(r: DiscoveryResult): string {
+  if (!r.inventory) return '';
+  return r.inventory.replication.connectedReplicas
+    .map(
+      (rep) => `${rep.ip}:${rep.port} (state=${rep.state}, offset=${rep.offset}, lag=${rep.lag})`,
+    )
+    .join('; ');
+}
+
+function keyspaceDetail(r: DiscoveryResult): string {
+  if (!r.inventory) return '';
+  return r.inventory.keyspace
+    .map((db) => `db${db.db}: keys=${db.keys}, expires=${db.expires}, avgTtlMs=${db.avgTtlMs}`)
+    .join('; ');
+}
+
+function moduleDetails(r: DiscoveryResult): string {
+  if (!r.inventory) return '';
+  return r.inventory.modules.map((m) => `${m.name} (v${m.version}, ${m.path})`).join('; ');
+}
+
 function toRow(r: DiscoveryResult): string {
+  const cluster = r.inventory?.clusterInfo ?? null;
   return [
     r.host,
     String(r.port),
     String(r.tls),
     productDisplay(r.product),
     r.version ?? '',
+    String(r.authRequired),
     r.anonymousStatus,
     r.authenticatedStatus,
     r.inventory?.role ?? '',
     r.inventory?.mode ?? '',
     r.inventory?.os ?? '',
     r.inventory != null ? String(r.inventory.uptimeSeconds) : '',
+    r.inventory?.connectedClients != null ? String(r.inventory.connectedClients) : '',
     String(r.latency),
     r.inventory?.memory.usedMemoryBytes != null ? String(r.inventory.memory.usedMemoryBytes) : '',
+    r.inventory?.memory.maxMemoryBytes != null ? String(r.inventory.memory.maxMemoryBytes) : '',
+    r.inventory?.memory.usedMemoryPeakBytes != null
+      ? String(r.inventory.memory.usedMemoryPeakBytes)
+      : '',
+    r.inventory?.memory.totalSystemMemoryBytes != null
+      ? String(r.inventory.memory.totalSystemMemoryBytes)
+      : '',
     r.inventory?.memory.maxMemoryPolicy ?? '',
     r.inventory ? String(r.inventory.replication.connectedReplicas.length) : '',
+    replicaDetails(r),
     r.inventory?.replication.masterHost ?? '',
     r.inventory?.replication.masterPort != null ? String(r.inventory.replication.masterPort) : '',
     r.inventory?.replication.masterLinkStatus ?? '',
     totalKeys(r),
+    keyspaceDetail(r),
     r.inventory?.modules.map((m) => m.name).join(', ') ?? '',
-    r.inventory?.clusterInfo?.state ?? '',
+    moduleDetails(r),
+    cluster?.state ?? '',
+    cluster ? String(cluster.enabled) : '',
+    cluster != null ? String(cluster.slotsAssigned) : '',
+    cluster != null ? String(cluster.knownNodes) : '',
+    cluster != null ? String(cluster.size) : '',
     r.inventory?.runId ?? '',
     r.tlsCertificate?.subject ?? '',
     r.tlsCertificate?.issuer ?? '',
+    r.tlsCertificate?.validFrom ?? '',
     r.tlsCertificate?.validTo ?? '',
     r.tlsCertificate ? String(r.tlsCertificate.selfSigned) : '',
     r.tlsCertificate ? String(r.tlsCertificate.trusted) : '',
+    r.tlsCertificate?.fingerprint256 ?? '',
   ]
     .map(escape)
     .join(',');
@@ -116,13 +179,13 @@ function toIniSection(r: DiscoveryResult): string {
 
 /**
  * Renders scan results as an osstats-compatible config.ini: one section per
- * discovered host:port, pre-filled with host/port/tls. Redis Scanner never
+ * discovered host:port, pre-filled with host/port/tls. Redis Discovery never
  * holds credentials past the request that used them, so username/password
  * are always left blank for the operator to fill in before running osstats.
  */
 export function toIni(results: DiscoveryResult[]): string {
   const header =
-    '; Generated by Redis Scanner from scan results.\n' +
+    '; Generated by Redis Discovery from scan results.\n' +
     '; Fill in username/password (and ca_cert/client_cert/client_key for mTLS)\n' +
     '; before running osstats against these targets.\n';
   return header + '\n' + results.map(toIniSection).join('\n\n') + '\n';
@@ -183,7 +246,7 @@ function toOsstatsRow(r: DiscoveryResult): CellValue[] {
 
 /**
  * Renders scan results as an .xlsx shaped like osstats' own output — same
- * sheet name and column layout, populated only with what Redis Scanner's
+ * sheet name and column layout, populated only with what Redis Discovery's
  * single-probe model actually knows. See OSSTATS_HEADERS for why the
  * throughput columns aren't included.
  */

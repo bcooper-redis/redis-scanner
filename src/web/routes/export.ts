@@ -17,7 +17,7 @@ exportRouter.get('/export/csv', (req, res) => {
   const state = req.app.get('state') as AppState;
   const csv = toCsv(selectResults(req, state));
   res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="redis-scanner-export.csv"');
+  res.setHeader('Content-Disposition', 'attachment; filename="redis-discovery-export.csv"');
   res.send(csv);
 });
 
@@ -25,7 +25,7 @@ exportRouter.get('/export/ini', (req, res) => {
   const state = req.app.get('state') as AppState;
   const ini = toIni(selectResults(req, state));
   res.setHeader('Content-Type', 'text/plain');
-  res.setHeader('Content-Disposition', 'attachment; filename="redis-scanner-export.ini"');
+  res.setHeader('Content-Disposition', 'attachment; filename="redis-discovery-export.ini"');
   res.send(ini);
 });
 
@@ -36,6 +36,6 @@ exportRouter.get('/export/xlsx', (req, res) => {
     'Content-Type',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   );
-  res.setHeader('Content-Disposition', 'attachment; filename="redis-scanner-export.xlsx"');
+  res.setHeader('Content-Disposition', 'attachment; filename="redis-discovery-export.xlsx"');
   res.send(xlsx);
 });

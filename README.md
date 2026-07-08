@@ -1,6 +1,6 @@
-# Redis Scanner
+# Redis Discovery
 
-Redis Scanner safely discovers Redis-compatible databases (Redis OSS, Redis Enterprise, Valkey, KeyDB where possible) on networks you are authorized to scan, and provides read-only inventory through a CLI and a lightweight Web UI. It never writes to a scanned instance, never stores or logs credentials, and never brute-forces passwords.
+Redis Discovery safely discovers Redis-compatible databases (Redis OSS, Redis Enterprise, Valkey, KeyDB where possible) on networks you are authorized to scan, and provides read-only inventory through a CLI and a lightweight Web UI. It never writes to a scanned instance, never stores or logs credentials, and never brute-forces passwords.
 
 > **Only scan networks and hosts you are authorized to test.**
 
@@ -25,8 +25,8 @@ Redis Scanner safely discovers Redis-compatible databases (Redis OSS, Redis Ente
 ## Install & build
 
 ```bash
-git clone <this repo>
-cd RedisScanner
+git clone https://github.com/bcooper-redis/redis-discovery.git
+cd redis-discovery
 npm install
 npm run build
 ```
@@ -136,8 +136,8 @@ Open the address `rscan serve` prints (default `http://localhost:3000`). Five pa
 - **Dashboard** — configure and start a scan: targets (CIDR ranges, bare IPs, or hostnames, one per line — hostnames are resolved via DNS and every resolved address is scanned), ports, timeout, concurrency, TLS options, and optional credentials for this scan only. Any target line may end in `:port` (e.g. `redis.example.com:6380`, or `10.0.0.0/24:6380`) to scan just that target on that port instead of the shared Ports field. Submitting takes you to Results. Non-credential fields are remembered for the rest of the browser tab's session (via `sessionStorage`), so navigating to Results and back doesn't lose what you typed — closing the tab or browser clears it.
   - **Upload CSV** — load targets from a CSV file instead of typing them: one target per line, `host` or `host,port` (a header row is skipped automatically). The file is read entirely in the browser and never uploaded to the server; it just replaces the Targets field, encoding each row with a port as `host:port` so that row is scanned on exactly its own port rather than every port seen in the file. It applies the same Timeout/Concurrency/TLS/credentials fields to every target — there's no way to give individual targets their own credentials via this form; that's what Credential Scan (below) is for.
 - **Credential Scan** — a different kind of scan for a known list of hosts, each with its own username/password: upload a `host,port,username,password` CSV (the only way to supply targets here — `username`/`password` may be blank per row for an anonymous probe of that host) plus the same Timeout/Concurrency/TLS options as Dashboard, then submit. Like the Dashboard's CSV upload, the file is parsed entirely in the browser; only the resulting host/port/username/password values are sent when you start the scan, never the raw file. Results land on the same Results page below, with the same table and export options — this scan type isn't visually distinct there, only distinguishable by its results actually authenticating per-row instead of anonymously. **Restart doesn't apply to a Credential Scan** and won't appear on Results afterward — each row's password exists only for the single request that used it, so there's nothing to replay; re-upload the CSV to run it again.
-- **Results** — a target banner showing what's being (or was) scanned, live status and progress while a scan runs, then a table of discovered instances: host, port, product, version, TLS, auth status, role, mode, cluster state, connected replica count, what it's replicating from (for a replica), memory usage, key count, loaded modules, OS, uptime, latency, run ID, and TLS certificate + expiry. Each row has an **Authenticate** button that opens a dialog for that host's credentials — submitting re-probes with them and updates the row's inventory in place.
-  - Below the table, **Export CSV**/**INI**/**XLSX** download the current (filtered, if "Hide duplicates" is checked — see below) results. **INI** produces a [config.ini](https://github.com/Redislabs-Solution-Architects/osstats) compatible with the `osstats` tool — one `[host:port]` section per result, pre-filled with `host`/`port`/`tls`; `username`/`password` are always left blank since Redis Scanner never retains credentials past the request that used them. **XLSX** produces a file shaped like osstats' own `OSStats.xlsx` output — same sheet name (`ClusterData`) and column layout for the fields Redis Scanner's single probe actually knows (`Source`, `NodeId`, `NodeRole`, `RedisVersion`, `OS`, memory figures, `ConnectedSlaves`, `CurrItems`, `Namespaces`, ...). osstats' own output is mostly throughput/command-stats columns (`Throughput (Ops)`, `GetTypeCmds`, `SetTypeCmds`, ...) computed by holding a connection open, sampling `INFO COMMANDSTATS` twice several minutes apart, and subtracting — Redis Scanner does one point-in-time probe and never fabricates numbers for what it didn't measure, so those columns are omitted entirely rather than filled with 0 or blank.
+- **Results** — a target banner showing what's being (or was) scanned, live status and progress while a scan runs, then a table of discovered instances: host, port, product, version, TLS, auth status, role, mode, cluster state, connected replica count, what it's replicating from (for a replica), memory usage (used vs. configured max, or "no limit" when `maxmemory` is unset), key count, loaded modules, OS, uptime, latency, run ID, and TLS certificate + expiry. Each row has an **Authenticate** button that opens a dialog for that host's credentials — submitting re-probes with them and updates the row's inventory in place.
+  - Below the table, **Export CSV**/**INI**/**XLSX** download the current (filtered, if "Hide duplicates" is checked — see below) results. **CSV** is a complete dump of every field the JSON API returns, not just what the table shows — this includes max memory (the configured `maxmemory` limit), peak used memory, total system memory, connected-client count, whether auth was required, full per-replica/per-database-keyspace/per-module detail (the table only shows counts/names), full cluster info (enabled/slots/known nodes/size, not just state), and the certificate's `validFrom` and SHA-256 fingerprint. **INI** produces a [config.ini](https://github.com/Redislabs-Solution-Architects/osstats) compatible with the `osstats` tool — one `[host:port]` section per result, pre-filled with `host`/`port`/`tls`; `username`/`password` are always left blank since Redis Discovery never retains credentials past the request that used them. **XLSX** produces a file shaped like osstats' own `OSStats.xlsx` output — same sheet name (`ClusterData`) and column layout for the fields Redis Discovery's single probe actually knows (`Source`, `NodeId`, `NodeRole`, `RedisVersion`, `OS`, memory figures, `ConnectedSlaves`, `CurrItems`, `Namespaces`, ...). osstats' own output is mostly throughput/command-stats columns (`Throughput (Ops)`, `GetTypeCmds`, `SetTypeCmds`, ...) computed by holding a connection open, sampling `INFO COMMANDSTATS` twice several minutes apart, and subtracting — Redis Discovery does one point-in-time probe and never fabricates numbers for what it didn't measure, so those columns are omitted entirely rather than filled with 0 or blank.
   - **TLS certificate info without credentials** — for any TLS target, the certificate's subject, issuer, expiry, and whether it's self-signed or CA-issued/trusted are read straight off the TLS handshake, independent of Redis-level auth. This is the one piece of real information available for a host that requires authentication you don't have — the "TLS Cert"/"Cert Expires" columns (and every other inventory column) still show `—` for that row, but the certificate columns don't, since the handshake already happened before AUTH was ever attempted.
   - **Same-database detection** — if two or more results report the same Run ID (Redis's own per-process identifier), that means the same database is reachable through more than one endpoint — for example, a Redis Enterprise database whose proxy answers on every cluster node, or (as happens on a machine with both Wi-Fi and Ethernet active on the same subnet) the same instance discovered via two of your own local addresses. A banner appears above the table with a **Hide duplicates** checkbox, **checked by default**, which collapses each such group down to a single representative row — this also strips the extra rows from Export CSV/INI/XLSX (as `&excludeDuplicates=true` on the underlying API calls). Uncheck it to see every endpoint each database was actually found at, with a "⚠ dup" badge and tooltip on each affected row's Run ID. The CLI table always prints the full, un-collapsed list plus the same warning below its output (no equivalent hide option there yet); CSV/JSON just carry the raw Run ID for each row so you can group them yourself.
   - **Pause** / **Resume** — freezes and resumes a running scan. Already-open connections finish naturally; nothing new starts until you resume.
@@ -165,7 +165,7 @@ Only one scan runs at a time; starting a new one while another is in progress (s
 | `POST /api/inventory` | Authenticate against a single host **and** return/update its full inventory — `{ host, port, username?, password }` → the updated result. This is what the Results page's Authenticate dialog uses. |
 | `GET /api/export/csv` | Download current results as CSV. Add `?excludeDuplicates=true` to collapse each run_id-duplicate group to one row (see "Same-database detection" above). |
 | `GET /api/export/ini` | Download current results as an [osstats](https://github.com/Redislabs-Solution-Architects/osstats)-compatible `config.ini` — one `[host:port]` section per result with `host`/`port`/`tls` filled in; `username`/`password` are always blank. Also supports `?excludeDuplicates=true`. |
-| `GET /api/export/xlsx` | Download current results as an `.xlsx` shaped like osstats' own output (sheet `ClusterData`, same column layout) — populated only with fields Redis Scanner's single probe knows; osstats' throughput/command-stats columns are omitted, not faked. Also supports `?excludeDuplicates=true`. |
+| `GET /api/export/xlsx` | Download current results as an `.xlsx` shaped like osstats' own output (sheet `ClusterData`, same column layout) — populated only with fields Redis Discovery's single probe knows; osstats' throughput/command-stats columns are omitted, not faked. Also supports `?excludeDuplicates=true`. |
 
 Credentials are accepted in request bodies (never in a URL) and are never echoed back in any response, logged, or persisted.
 
@@ -177,7 +177,7 @@ Each result also has a top-level `tlsCertificate` field — sitting *outside* `i
 
 > **Only scan networks and hosts you are authorized to test.**
 
-Redis Scanner does a TCP connect scan, then — on open ports — a short, fixed sequence of read-only Redis commands (never more than `AUTH`, `PING`, `INFO`, `MODULE LIST`, `CLUSTER INFO`). It never sends a command that writes data, changes configuration, or alters cluster/replication state. Credentials are used for exactly one login attempt and are never logged, persisted, or echoed back. Everything lives in memory for the life of the process — no disk writes, no outbound calls to anything other than the hosts you asked it to scan.
+Redis Discovery does a TCP connect scan, then — on open ports — a short, fixed sequence of read-only Redis commands (never more than `AUTH`, `PING`, `INFO`, `MODULE LIST`, `CLUSTER INFO`). It never sends a command that writes data, changes configuration, or alters cluster/replication state. Credentials are used for exactly one login attempt and are never logged, persisted, or echoed back. Everything lives in memory for the life of the process — no disk writes, no outbound calls to anything other than the hosts you asked it to scan.
 
 **See [SECURITY.md](SECURITY.md) for the full security reference** — written for a security team evaluating this tool: the exact wire-level command sequence (verified via live capture), TLS/certificate verification behavior, credential lifecycle, data handling, and the Web UI's lack of built-in authentication (it has no access control of its own — read this before binding `rscan serve` to anything other than `localhost`).
 
@@ -224,34 +224,34 @@ Project layout: `src/scanner` (CIDR/port expansion, TCP probing, concurrency), `
 The `Dockerfile` builds entirely from local files — it doesn't need this repo to be on GitHub or any remote. It's a two-stage build: a `build` stage with full `npm ci` (TypeScript, and `htmx.org` — a devDependency whose only job is to be vendored into `dist/web/public/htmx.min.js` at build time) compiles the app, then a fresh `runtime` stage installs only production dependencies and copies in the compiled `dist/`. The final image never contains TypeScript, test files, or dev tooling.
 
 ```bash
-docker build -t redis-scanner .
+docker build -t redis-discovery .
 ```
 
 Runs the Web UI by default (the image's `ENTRYPOINT` is the CLI; the default `CMD` is `serve --host 0.0.0.0 --port 3000` — binding `0.0.0.0`, not `localhost`, is required so it's reachable from outside the container):
 
 ```bash
-docker run --rm -p 3000:3000 redis-scanner
+docker run --rm -p 3000:3000 redis-discovery
 # open http://localhost:3000
 ```
 
 Any extra arguments after the image name override the default `CMD`, so the same image runs one-shot scans too:
 
 ```bash
-docker run --rm redis-scanner scan -c 10.0.0.0/24 -p 6379,6380
+docker run --rm redis-discovery scan -c 10.0.0.0/24 -p 6379,6380
 ```
 
 ### The one thing that's genuinely different in a container: networking
 
-Redis Scanner's core job is discovering what's on your network — and a container has its *own* network by default, not your machine's. This is the one place containerizing this specific tool needs extra thought, not just Docker boilerplate. Concretely, on this exact setup:
+Redis Discovery's core job is discovering what's on your network — and a container has its *own* network by default, not your machine's. This is the one place containerizing this specific tool needs extra thought, not just Docker boilerplate. Concretely, on this exact setup:
 
 ```
-$ docker run --rm redis-scanner scan -c 127.0.0.1/32 -p 6379,6380
+$ docker run --rm redis-discovery scan -c 127.0.0.1/32 -p 6379,6380
 No Redis instances found.                     # the container's own loopback, not the host's
 
-$ docker run --rm redis-scanner scan -p 6379  # no -c → auto-detects local subnets
+$ docker run --rm redis-discovery scan -p 6379  # no -c → auto-detects local subnets
 Auto-detected CIDRs: 172.17.0.0/24            # Docker's internal bridge network, not your LAN
 
-$ docker run --rm --network host redis-scanner scan -p 6379
+$ docker run --rm --network host redis-discovery scan -p 6379
 Auto-detected CIDRs: 192.168.65.0/24, ...     # now it sees the real network
 ```
 
@@ -259,7 +259,7 @@ Auto-detected CIDRs: 192.168.65.0/24, ...     # now it sees the real network
 - **Scanning `127.0.0.1` or letting it auto-detect local subnets** (omitting `-c`) reflects the *container's* loopback/network, not your machine's, unless you run with `--network host`. On Linux this shares the host's network namespace directly. On Docker Desktop (Mac/Windows) it's improved a lot in recent versions and worked correctly when tested above — but treat it as something to verify on your own Docker Desktop version rather than assumed.
 - To reach a service on the host machine itself without `--network host`, use the special DNS name `host.docker.internal` — but resolve it to an IP first, since `-c` takes a literal CIDR, not a hostname:
   ```bash
-  docker run --rm redis-scanner scan -c $(docker run --rm node:22-alpine node -e "require('dns').lookup('host.docker.internal',(e,a)=>console.log(a))")/32 -p 6379
+  docker run --rm redis-discovery scan -c $(docker run --rm node:22-alpine node -e "require('dns').lookup('host.docker.internal',(e,a)=>console.log(a))")/32 -p 6379
   ```
 
 If you're running the Web UI in a container and using its Dashboard with a blank CIDR field (auto-detect), the same caveat applies — you'll see the container's network, not your LAN, unless you add `--network host` to the `docker run` command that starts it.

@@ -164,6 +164,13 @@
     return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
   }
 
+  // maxMemoryBytes null means "no limit" (see parseMemory in src/probe/info.ts)
+  // — distinct from usedMemoryBytes null, which means "unknown".
+  function formatMemory(memory) {
+    const max = memory.maxMemoryBytes != null ? formatBytes(memory.maxMemoryBytes) : 'no limit';
+    return `${formatBytes(memory.usedMemoryBytes)} / ${max}`;
+  }
+
   function totalKeys(inv) {
     return inv.keyspace.reduce((sum, db) => sum + db.keys, 0);
   }
@@ -212,7 +219,7 @@
     cell(inv ? formatClusterInfo(inv.clusterInfo) : '—');
     cell(inv ? String(inv.replication.connectedReplicas.length) : '—');
     cell(inv ? formatReplicatingFrom(inv.replication) : '—');
-    cell(inv ? formatBytes(inv.memory.usedMemoryBytes) : '—');
+    cell(inv ? formatMemory(inv.memory) : '—');
     cell(inv ? String(totalKeys(inv)) : '—');
     cell(inv && inv.modules.length > 0 ? inv.modules.map((m) => m.name).join(', ') : '—');
     cell(inv ? inv.os : '—');

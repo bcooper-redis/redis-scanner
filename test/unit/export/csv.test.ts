@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { toCsv } from '../../../src/export/index';
+import { parseCsvLine } from '../../../src/scanner/credentialCsv';
 import type { DiscoveryResult } from '../../../src/types';
+
+// Row/header-index assertions below use parseCsvLine (not a naive
+// .split(',')) because several columns (Replica/Keyspace/Module Details) are
+// quoted CSV fields containing embedded commas — a naive split would count
+// them as extra columns and throw off every index after them.
+function cellsOf(csv: string, rowIndex: number): string[] {
+  return parseCsvLine(csv.split('\r\n')[rowIndex]);
+}
 
 const OPEN: DiscoveryResult = {
   host: '10.0.0.1',
@@ -26,18 +35,29 @@ const OPEN: DiscoveryResult = {
     },
     memory: {
       usedMemoryBytes: 1048576,
-      maxMemoryBytes: null,
+      maxMemoryBytes: 2097152,
       maxMemoryPolicy: 'noeviction',
-      totalSystemMemoryBytes: null,
-      usedMemoryPeakBytes: null,
+      totalSystemMemoryBytes: 17179869184,
+      usedMemoryPeakBytes: 1572864,
     },
     keyspace: [{ db: 0, keys: 5, expires: 1, avgTtlMs: 0 }],
     modules: [{ name: 'search', version: 20811, path: '/usr/lib/redis/modules/redisearch.so' }],
     clusterInfo: null,
     runId: 'a3f92c1e2b8d4f1a9c7e6d5b4a3f92c1e2b8d4f1',
-    connectedClients: null,
+    connectedClients: 7,
   },
   tlsCertificate: null,
+};
+
+const CLUSTER_NODE: DiscoveryResult = {
+  ...OPEN,
+  host: '10.0.0.5',
+  inventory: {
+    ...OPEN.inventory!,
+    mode: 'cluster',
+    clusterInfo: { enabled: true, state: 'ok', slotsAssigned: 16384, knownNodes: 6, size: 3 },
+    runId: 'c5b4a3f92c1e2b8d4f1a9c7e6d5b4a3f92c1e2b8',
+  },
 };
 
 const REPLICA: DiscoveryResult = {
@@ -90,21 +110,35 @@ describe('toCsv', () => {
     expect(lines[0]).toContain('Port');
     expect(lines[0]).toContain('Product');
     expect(lines[0]).toContain('Version');
+    expect(lines[0]).toContain('Auth Required');
+    expect(lines[0]).toContain('Connected Clients');
     expect(lines[0]).toContain('Used Memory (bytes)');
+    expect(lines[0]).toContain('Max Memory (bytes)');
+    expect(lines[0]).toContain('Used Memory Peak (bytes)');
+    expect(lines[0]).toContain('Total System Memory (bytes)');
     expect(lines[0]).toContain('Max Memory Policy');
     expect(lines[0]).toContain('Connected Replicas');
+    expect(lines[0]).toContain('Replica Details');
     expect(lines[0]).toContain('Total Keys');
+    expect(lines[0]).toContain('Keyspace Detail');
     expect(lines[0]).toContain('Modules');
+    expect(lines[0]).toContain('Module Details');
     expect(lines[0]).toContain('Cluster State');
+    expect(lines[0]).toContain('Cluster Enabled');
+    expect(lines[0]).toContain('Cluster Slots Assigned');
+    expect(lines[0]).toContain('Cluster Known Nodes');
+    expect(lines[0]).toContain('Cluster Size');
     expect(lines[0]).toContain('Master Host');
     expect(lines[0]).toContain('Master Port');
     expect(lines[0]).toContain('Master Link Status');
     expect(lines[0]).toContain('Run ID');
     expect(lines[0]).toContain('Cert Subject');
     expect(lines[0]).toContain('Cert Issuer');
+    expect(lines[0]).toContain('Cert Valid From');
     expect(lines[0]).toContain('Cert Valid To');
     expect(lines[0]).toContain('Cert Self-Signed');
     expect(lines[0]).toContain('Cert Trusted');
+    expect(lines[0]).toContain('Cert Fingerprint (SHA-256)');
   });
 
   it('includes a data row for each result', () => {
@@ -140,6 +174,9 @@ describe('toCsv', () => {
   it('populates memory, replicas, keys, modules, and cluster state', () => {
     const csv = toCsv([OPEN]);
     expect(csv).toContain('1048576');
+    expect(csv).toContain('2097152');
+    expect(csv).toContain('1572864');
+    expect(csv).toContain('17179869184');
     expect(csv).toContain('noeviction');
     expect(csv).toContain('search');
   });
@@ -147,8 +184,66 @@ describe('toCsv', () => {
   it('leaves the new inventory-derived columns empty when inventory is null', () => {
     const csv = toCsv([AUTH_REQUIRED]);
     expect(csv).not.toContain('1048576');
+    expect(csv).not.toContain('2097152');
+    expect(csv).not.toContain('1572864');
+    expect(csv).not.toContain('17179869184');
     expect(csv).not.toContain('noeviction');
     expect(csv).not.toContain('search');
+
+    const headerCells = cellsOf(csv, 0);
+    const dataCells = cellsOf(csv, 1);
+    for (const col of [
+      'Replica Details',
+      'Keyspace Detail',
+      'Module Details',
+      'Connected Clients',
+    ]) {
+      expect(dataCells[headerCells.indexOf(col)]).toBe('');
+    }
+  });
+
+  it('populates Auth Required for both true and false', () => {
+    const openCsv = toCsv([OPEN]);
+    expect(cellsOf(openCsv, 1)[cellsOf(openCsv, 0).indexOf('Auth Required')]).toBe('false');
+
+    const requiredCsv = toCsv([AUTH_REQUIRED]);
+    expect(cellsOf(requiredCsv, 1)[cellsOf(requiredCsv, 0).indexOf('Auth Required')]).toBe('true');
+  });
+
+  it('populates Connected Clients', () => {
+    expect(toCsv([OPEN])).toContain('7');
+  });
+
+  it('populates Replica Details, Keyspace Detail, and Module Details with full per-entry fidelity', () => {
+    const csv = toCsv([OPEN]);
+    expect(csv).toContain('10.0.0.2:6379 (state=online, offset=14, lag=0)');
+    expect(csv).toContain('db0: keys=5, expires=1, avgTtlMs=0');
+    expect(csv).toContain('search (v20811, /usr/lib/redis/modules/redisearch.so)');
+  });
+
+  it('populates cluster detail columns when the node reports cluster mode', () => {
+    const csv = toCsv([CLUSTER_NODE]);
+    const headerCells = cellsOf(csv, 0);
+    const cells = cellsOf(csv, 1);
+    expect(cells[headerCells.indexOf('Cluster State')]).toBe('ok');
+    expect(cells[headerCells.indexOf('Cluster Enabled')]).toBe('true');
+    expect(cells[headerCells.indexOf('Cluster Slots Assigned')]).toBe('16384');
+    expect(cells[headerCells.indexOf('Cluster Known Nodes')]).toBe('6');
+    expect(cells[headerCells.indexOf('Cluster Size')]).toBe('3');
+  });
+
+  it('leaves cluster detail columns empty for a standalone node', () => {
+    const csv = toCsv([OPEN]);
+    const headerCells = cellsOf(csv, 0);
+    const cells = cellsOf(csv, 1);
+    for (const col of [
+      'Cluster Enabled',
+      'Cluster Slots Assigned',
+      'Cluster Known Nodes',
+      'Cluster Size',
+    ]) {
+      expect(cells[headerCells.indexOf(col)]).toBe('');
+    }
   });
 
   it('populates master host/port/link status for a replica', () => {
@@ -161,9 +256,8 @@ describe('toCsv', () => {
 
   it('leaves master host/port/link status empty for a master (no upstream)', () => {
     const csv = toCsv([OPEN]);
-    const dataRow = csv.split('\r\n')[1];
-    const cells = dataRow.split(',');
-    const headerCells = toCsv([OPEN]).split('\r\n')[0].split(',');
+    const headerCells = cellsOf(csv, 0);
+    const cells = cellsOf(csv, 1);
     expect(cells[headerCells.indexOf('Master Host')]).toBe('');
     expect(cells[headerCells.indexOf('Master Link Status')]).toBe('');
   });
@@ -190,12 +284,21 @@ describe('toCsv', () => {
 
   it('leaves certificate columns empty for a plaintext connection', () => {
     const csv = toCsv([OPEN]);
-    const dataRow = csv.split('\r\n')[1];
-    const headerCells = csv.split('\r\n')[0].split(',');
-    const cells = dataRow.split(',');
+    const headerCells = cellsOf(csv, 0);
+    const cells = cellsOf(csv, 1);
     expect(cells[headerCells.indexOf('Cert Subject')]).toBe('');
     expect(cells[headerCells.indexOf('Cert Self-Signed')]).toBe('');
     expect(cells[headerCells.indexOf('Cert Trusted')]).toBe('');
+    expect(cells[headerCells.indexOf('Cert Valid From')]).toBe('');
+    expect(cells[headerCells.indexOf('Cert Fingerprint (SHA-256)')]).toBe('');
+  });
+
+  it('populates Cert Valid From and Cert Fingerprint', () => {
+    const csv = toCsv([AUTH_REQUIRED_TLS]);
+    const headerCells = cellsOf(csv, 0);
+    const cells = cellsOf(csv, 1);
+    expect(cells[headerCells.indexOf('Cert Valid From')]).toBe('Jan 1 00:00:00 2026 GMT');
+    expect(cells[headerCells.indexOf('Cert Fingerprint (SHA-256)')]).toBe('AA:BB:CC');
   });
 
   it('quotes values containing commas', () => {

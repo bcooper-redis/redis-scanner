@@ -6,7 +6,7 @@ import { registerServe } from './serve';
 
 const program = new Command();
 
-program.name('rscan').description('Redis Scanner — Redis discovery & inventory').version('0.1.0');
+program.name('rscan').description('Redis Discovery — Redis discovery & inventory').version('0.1.0');
 
 registerScan(program);
 registerCredentialScan(program);

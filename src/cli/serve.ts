@@ -12,7 +12,7 @@ export function registerServe(program: Command): void {
       const host = opts.host;
       const app = createApp();
       app.listen(port, host, () => {
-        process.stderr.write(`Redis Scanner web UI listening on http://${host}:${port}\n`);
+        process.stderr.write(`Redis Discovery web UI listening on http://${host}:${port}\n`);
       });
     });
 }

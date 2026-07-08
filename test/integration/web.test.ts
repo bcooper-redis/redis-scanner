@@ -741,7 +741,7 @@ describe('export ?excludeDuplicates=true', () => {
 // ---------------------------------------------------------------------------
 
 describe('Web UI static pages', () => {
-  it('serves the Dashboard at the root path', async () => {
+  it('serves the Discover page at the root path', async () => {
     const r = await fetch(`${server.url}/`);
     expect(r.status).toBe(200);
     expect(r.headers.get('content-type')).toContain('text/html');
@@ -768,7 +768,7 @@ describe('Web UI static pages', () => {
   it('serves the About page', async () => {
     const r = await fetch(`${server.url}/about.html`);
     expect(r.status).toBe(200);
-    expect(await r.text()).toContain('Redis Scanner');
+    expect(await r.text()).toContain('Redis Discovery');
   });
 
   it('serves each page-controller script', async () => {

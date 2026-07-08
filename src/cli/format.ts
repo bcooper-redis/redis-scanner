@@ -1,5 +1,25 @@
 import { productDisplay, findRunIdDuplicates } from '../types';
-import type { DiscoveryResult } from '../types';
+import type { DiscoveryResult, MemoryInfo } from '../types';
+
+function formatBytes(bytes: number | null): string {
+  if (bytes == null) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+// maxMemoryBytes null means "no limit" (see parseMemory in probe/info.ts) —
+// distinct from usedMemoryBytes null, which means "unknown".
+function formatMemory(memory: MemoryInfo | undefined): string {
+  if (!memory) return '—';
+  const max = memory.maxMemoryBytes != null ? formatBytes(memory.maxMemoryBytes) : 'no limit';
+  return `${formatBytes(memory.usedMemoryBytes)} / ${max}`;
+}
 
 function authDisplay(r: DiscoveryResult): string {
   if (r.anonymousStatus === 'open') {
@@ -21,6 +41,7 @@ type Row = {
   version: string;
   auth: string;
   role: string;
+  memory: string;
   latency: string;
 };
 
@@ -32,6 +53,7 @@ const HEADERS: Row = {
   version: 'VERSION',
   auth: 'AUTH',
   role: 'ROLE',
+  memory: 'MEMORY',
   latency: 'LATENCY',
 };
 
@@ -46,6 +68,7 @@ function toRow(r: DiscoveryResult): Row {
     version: r.version ?? '—',
     auth: authDisplay(r),
     role: r.inventory?.role ?? '—',
+    memory: formatMemory(r.inventory?.memory),
     latency: `${r.latency}ms`,
   };
 }

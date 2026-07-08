@@ -89,7 +89,7 @@ describe('toOsstatsXlsx', () => {
       expect(xml).toContain(header);
     }
     // The throughput/command-stats columns require a held-open connection and
-    // a wait-then-resample of INFO COMMANDSTATS, which Redis Scanner never
+    // a wait-then-resample of INFO COMMANDSTATS, which Redis Discovery never
     // does — they must never appear, fabricated or otherwise.
     for (const throughputColumn of [
       'Throughput (Ops)',
