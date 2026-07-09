@@ -1,4 +1,4 @@
-import { formatTable, formatJson } from './format';
+import { formatTable, formatJson, formatDuplicateWarning } from './format';
 import { toCsv, toIni, toOsstatsXlsx } from '../export/index';
 import type { DiscoveryResult } from '../types';
 
@@ -22,6 +22,16 @@ export function resolveFormat(formatOpt: string | undefined, jsonFlag: boolean):
     process.exit(1);
   }
   return formatOpt as OutputFormat;
+}
+
+/**
+ * Writes a stderr warning when 2+ results share a run_id, regardless of
+ * --format — unlike stdout, stderr is unaffected by piping/redirecting the
+ * result data, so this is the one place a duplicate warning always surfaces.
+ */
+export function writeDuplicateWarning(results: DiscoveryResult[]): void {
+  const warning = formatDuplicateWarning(results);
+  if (warning) process.stderr.write(`\n${warning}\n`);
 }
 
 /** Writes results to stdout in the given format. XLSX is binary; every other format is text. */

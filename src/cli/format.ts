@@ -77,9 +77,10 @@ function toRow(r: DiscoveryResult): Row {
  * Warns when 2+ results share a run_id — the same running redis-server
  * process reachable through more than one host:port (e.g. a Redis
  * Enterprise database answering on every cluster node behind its proxy).
- * Returns '' when there's nothing to warn about.
+ * Returns '' when there's nothing to warn about. Format-agnostic (used by
+ * every --format, not just table) — see writeDuplicateWarning.
  */
-function formatDuplicateWarning(results: DiscoveryResult[]): string {
+export function formatDuplicateWarning(results: DiscoveryResult[]): string {
   const groups = findRunIdDuplicates(results);
   if (groups.length === 0) return '';
 
@@ -92,8 +93,8 @@ function formatDuplicateWarning(results: DiscoveryResult[]): string {
   const groupWord = groups.length === 1 ? 'group' : 'groups';
 
   return (
-    `\n\n⚠ ${groups.length} ${groupWord} of results share the same Run ID — likely the ` +
-    `same\n  database reachable through multiple endpoints (common with Redis\n` +
+    `⚠ ${groups.length} ${groupWord} of results share the same Run ID — likely the same\n` +
+    `  database reachable through multiple endpoints (common with Redis\n` +
     `  Enterprise's proxy layer):\n${lines.join('\n')}`
   );
 }
@@ -108,7 +109,7 @@ export function formatTable(results: DiscoveryResult[]): string {
   const header = KEYS.map((k) => HEADERS[k].padEnd(widths[k])).join(sep);
   const divider = KEYS.map((k) => '─'.repeat(widths[k])).join(sep);
   const lines = rows.map((row) => KEYS.map((k) => row[k].padEnd(widths[k])).join(sep));
-  return [header, divider, ...lines].join('\n') + formatDuplicateWarning(results);
+  return [header, divider, ...lines].join('\n');
 }
 
 export function formatJson(results: DiscoveryResult[]): string {

@@ -4,7 +4,7 @@ import { credentialScan } from '../inventory/credentialScan';
 import type { CredentialScanOptions } from '../inventory/credentialScan';
 import { parseCredentialCsv } from '../scanner/credentialCsv';
 import { parseCredentialIni } from '../scanner/credentialIni';
-import { resolveFormat, writeFormattedOutput } from './outputFormat';
+import { resolveFormat, writeFormattedOutput, writeDuplicateWarning } from './outputFormat';
 import { clearLine, writeProgress } from './progress';
 
 interface CredentialScanOpts {
@@ -99,6 +99,7 @@ export function registerCredentialScan(program: Command): void {
       const openStr = `${openCount} open port${openCount === 1 ? '' : 's'}`;
       const foundStr = `${results.length} Redis instance${results.length === 1 ? '' : 's'}`;
       process.stderr.write(`Scanned ${targetStr}; found ${openStr}, ${foundStr}.\n`);
+      writeDuplicateWarning(results);
 
       writeFormattedOutput(format, results);
     });

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { resolveFormat, writeFormattedOutput } from '../../../src/cli/outputFormat';
+import {
+  resolveFormat,
+  writeFormattedOutput,
+  writeDuplicateWarning,
+} from '../../../src/cli/outputFormat';
 import type { DiscoveryResult } from '../../../src/types';
 
 const OPEN: DiscoveryResult = {
@@ -133,5 +137,36 @@ describe('writeFormattedOutput', () => {
     // ZIP local file header magic bytes — confirms this is a real archive,
     // not text accidentally written for a binary format.
     expect(bytes.subarray(0, 4).toString('latin1')).toBe('PK\x03\x04');
+  });
+});
+
+describe('writeDuplicateWarning', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function captureStderr(): { output: () => string } {
+    const chunks: Buffer[] = [];
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
+      return true;
+    });
+    return { output: () => Buffer.concat(chunks).toString('utf8') };
+  }
+
+  it('writes nothing to stderr when no results share a run_id', () => {
+    const { output } = captureStderr();
+    writeDuplicateWarning([OPEN]);
+    expect(output()).toBe('');
+  });
+
+  it('writes a warning to stderr when two results share a run_id, regardless of output format', () => {
+    const other: DiscoveryResult = { ...OPEN, host: '10.0.0.9', port: 12000 };
+    const { output } = captureStderr();
+    writeDuplicateWarning([OPEN, other]);
+    expect(output()).toContain('⚠');
+    expect(output()).toContain('Run ID');
+    expect(output()).toContain('10.0.0.1:6379');
+    expect(output()).toContain('10.0.0.9:12000');
   });
 });

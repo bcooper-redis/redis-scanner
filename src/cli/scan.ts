@@ -3,7 +3,7 @@ import { discover } from '../inventory/discover';
 import type { DiscoverOptions } from '../inventory/discover';
 import { expandPorts } from '../scanner/ports';
 import { detectLocalCidrs } from '../scanner/cidr';
-import { resolveFormat, writeFormattedOutput } from './outputFormat';
+import { resolveFormat, writeFormattedOutput, writeDuplicateWarning } from './outputFormat';
 import { clearLine, writeProgress } from './progress';
 import type { ScanConfig } from '../types';
 
@@ -117,6 +117,7 @@ export function registerScan(program: Command): void {
       const openStr = `${openCount} open port${openCount === 1 ? '' : 's'}`;
       const foundStr = `${results.length} Redis instance${results.length === 1 ? '' : 's'}`;
       process.stderr.write(`Scanned ${targetStr}; found ${openStr}, ${foundStr}.\n`);
+      writeDuplicateWarning(results);
 
       writeFormattedOutput(format, results);
     });

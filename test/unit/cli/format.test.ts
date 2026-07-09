@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatTable, formatJson } from '../../../src/cli/format';
+import { formatTable, formatJson, formatDuplicateWarning } from '../../../src/cli/format';
 import type { DiscoveryResult } from '../../../src/types';
 
 const OPEN: DiscoveryResult = {
@@ -171,14 +171,21 @@ describe('formatTable', () => {
   });
 });
 
-describe('formatTable — duplicate run_id warning', () => {
-  it('adds no warning when no results share a run_id', () => {
-    expect(formatTable([OPEN, AUTH_REQUIRED])).not.toContain('⚠');
+describe('formatTable — does not embed the duplicate warning', () => {
+  it('never includes a warning, even when results share a run_id', () => {
+    const other: DiscoveryResult = { ...OPEN, host: '10.0.0.9', port: 12000 };
+    expect(formatTable([OPEN, other])).not.toContain('⚠');
+  });
+});
+
+describe('formatDuplicateWarning', () => {
+  it('returns an empty string when no results share a run_id', () => {
+    expect(formatDuplicateWarning([OPEN, AUTH_REQUIRED])).toBe('');
   });
 
   it('warns when two results share the same run_id, listing both endpoints', () => {
     const other: DiscoveryResult = { ...OPEN, host: '10.0.0.9', port: 12000 };
-    const out = formatTable([OPEN, other]);
+    const out = formatDuplicateWarning([OPEN, other]);
     expect(out).toContain('⚠');
     expect(out).toContain('Run ID');
     expect(out).toContain('10.0.0.1:6379');
@@ -194,7 +201,7 @@ describe('formatTable — duplicate run_id warning', () => {
       anonymousStatus: 'open',
     };
     const noRunId2: DiscoveryResult = { ...noRunId1, host: '10.0.0.6' };
-    expect(formatTable([noRunId1, noRunId2])).not.toContain('⚠');
+    expect(formatDuplicateWarning([noRunId1, noRunId2])).toBe('');
   });
 
   it('reports one warning line per duplicate group', () => {
@@ -206,7 +213,7 @@ describe('formatTable — duplicate run_id warning', () => {
     };
     const groupB2: DiscoveryResult = { ...groupB1, host: '10.0.0.21' };
 
-    const out = formatTable([OPEN, groupA2, groupB1, groupB2]);
+    const out = formatDuplicateWarning([OPEN, groupA2, groupB1, groupB2]);
     expect(out).toContain('2 groups');
     expect(out).toContain('10.0.0.10');
     expect(out).toContain('10.0.0.20');

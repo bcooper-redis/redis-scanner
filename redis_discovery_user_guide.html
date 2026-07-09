@@ -642,7 +642,7 @@ redis.example.com:6380
         <li>A duplicate banner appears; <b>Hide duplicates</b> is checked by default.</li>
         <li>Checked: each duplicate group collapses to a single representative row. Unchecked: every endpoint shows with duplicate indicators.</li>
         <li>Export CSV/INI/XLSX follows the current duplicate setting.</li>
-        <li>CLI behavior differs: the CLI table always prints the full uncollapsed list plus a duplicate warning; JSON carries raw <code>runId</code> values so you can group them yourself.</li>
+        <li>CLI behavior differs: the CLI always prints the full uncollapsed list and always warns on stderr when duplicates are found, regardless of <code>--format</code>; every format's rows still carry the raw <code>runId</code> values so you can group them yourself.</li>
       </ul>
       <h4>Results table columns</h4>
       <div class="table-wrap"><table>
@@ -974,7 +974,7 @@ rscan credential-scan -f known-hosts.csv --json &gt; credentialed-inventory.json
       <p>These rows likely represent the same running database reachable through two endpoints.</p>
       <ul class="clean">
         <li><b>In the UI</b> — Hide duplicates checked: one representative row remains. Unchecked: all endpoints remain visible.</li>
-        <li><b>In the CLI</b> — table output shows all rows and prints a duplicate warning; JSON output includes all rows and the raw <code>runId</code> values.</li>
+        <li><b>In the CLI</b> — every output format shows all rows and warns on stderr when duplicates are found; each format's rows include the raw <code>runId</code> values too.</li>
       </ul>
     </section>
 
