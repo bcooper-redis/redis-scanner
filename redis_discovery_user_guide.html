@@ -290,6 +290,7 @@ ul.clean li::before { content:""; position:absolute; left: 2px; top: 13px; width
         <li>The Results page has a new <b>INI with credentials</b> button for re-attaching credentials to an export without retyping them — see <a href="#exports">Exports</a>.</li>
         <li>CSV export is now a complete dump of every field the JSON API returns, not just what the results table shows.</li>
         <li>The results table's Memory column shows used memory versus the configured maximum, not just used memory.</li>
+        <li><code>rscan scan</code> and <code>rscan credential-scan</code> now support <code>--format csv</code>, <code>--format ini</code>, and <code>--format xlsx</code> — the same export shapes as the Web UI's Results page, straight from the CLI. <code>--json</code> still works as a shorthand for <code>--format json</code>.</li>
       </ul>
     </div>
 
@@ -374,7 +375,8 @@ rscan serve --help</code></pre>
           <tr><td><code>--tls-skip-verify</code></td><td>Off</td><td>Skip TLS certificate verification. Useful for self-signed certificates or private CAs during authorized testing.</td></tr>
           <tr><td><code>--username &lt;user&gt;</code></td><td>None</td><td>ACL username. Requires <code>--password</code>.</td></tr>
           <tr><td><code>--password &lt;pass&gt;</code></td><td>None</td><td>Password used only for this scan. It is not logged, printed, or persisted.</td></tr>
-          <tr><td><code>--json</code></td><td>Off</td><td>Print results as formatted JSON instead of a table.</td></tr>
+          <tr><td><code>--format &lt;format&gt;</code></td><td>table</td><td>Output format: <code>table</code>, <code>json</code>, <code>csv</code>, <code>ini</code>, or <code>xlsx</code> — the same shapes the Web UI's Results page exports.</td></tr>
+          <tr><td><code>--json</code></td><td>Off</td><td>Shorthand for <code>--format json</code>. Kept for backward compatibility; an explicit <code>--format</code> wins if both are given.</td></tr>
         </tbody>
       </table></div>
 
@@ -420,9 +422,12 @@ rscan scan \
   --password 'correct-horse-battery-staple'</code></pre>
       <p><code>--username</code> requires <code>--password</code>. Supplying a username without a password is a usage error.</p>
 
-      <h4>JSON output</h4>
-      <pre><code>rscan scan -c 10.0.0.0/24 -p 6379,6380 --json &gt; redis-discovery-results.json</code></pre>
-      <p>Because progress goes to stderr and JSON goes to stdout, the redirected file contains only JSON.</p>
+      <h4>Output formats</h4>
+      <pre><code>rscan scan -c 10.0.0.0/24 -p 6379,6380 --json &gt; redis-discovery-results.json
+rscan scan -c 10.0.0.0/24 -p 6379,6380 --format csv &gt; redis-discovery-results.csv
+rscan scan -c 10.0.0.0/24 -p 6379,6380 --format ini &gt; config.ini
+rscan scan -c 10.0.0.0/24 -p 6379,6380 --format xlsx &gt; redis-discovery-results.xlsx</code></pre>
+      <p>Because progress goes to stderr and results go to stdout, the redirected file contains only the result data. <code>csv</code> and <code>ini</code> are text; <code>xlsx</code> is binary — both redirect cleanly with <code>&gt;</code>.</p>
 
       <h4>Table output</h4>
       <p>Without <code>--json</code>, results are printed as a table:</p>
@@ -479,7 +484,8 @@ rscan scan -c 10.0.0.0/16 -p 6379 -t 3000 --concurrency 200</code></pre>
           <tr><td><code>--concurrency &lt;n&gt;</code></td><td>100</td><td>Maximum number of concurrent connection attempts.</td></tr>
           <tr><td><code>--tls</code></td><td>Off</td><td>Attempt TLS first, with plain fallback on TLS handshake failure.</td></tr>
           <tr><td><code>--tls-skip-verify</code></td><td>Off</td><td>Skip certificate verification for self-signed or privately issued certificates.</td></tr>
-          <tr><td><code>--json</code></td><td>Off</td><td>Print results as formatted JSON instead of a table.</td></tr>
+          <tr><td><code>--format &lt;format&gt;</code></td><td>table</td><td>Output format: <code>table</code>, <code>json</code>, <code>csv</code>, <code>ini</code>, or <code>xlsx</code>.</td></tr>
+          <tr><td><code>--json</code></td><td>Off</td><td>Shorthand for <code>--format json</code>. Kept for backward compatibility; an explicit <code>--format</code> wins if both are given.</td></tr>
         </tbody>
       </table></div>
 
@@ -507,6 +513,7 @@ rscan scan -c 10.0.0.0/16 -p 6379 -t 3000 --concurrency 200</code></pre>
       <h4>Credential scan examples</h4>
       <pre><code>rscan credential-scan -f known-hosts.csv
 rscan credential-scan -f known-hosts.csv --json &gt; credential-scan-results.json
+rscan credential-scan -f known-hosts.ini --format csv &gt; credential-scan-results.csv
 
 <span class="c"># TLS and skip certificate verification</span>
 rscan credential-scan \
@@ -677,6 +684,10 @@ redis.example.com:6380
       </ul>
       <h4>XLSX export</h4>
       <p>An Excel workbook shaped like osstats' <code>OSStats.xlsx</code> output. Sheet name <code>ClusterData</code>. Includes fields Redis Discovery can know from a single point-in-time probe; it does not fabricate throughput or command-stat deltas that require long-running sampling.</p>
+      <div class="callout">
+        <svg class="ic" viewBox="0 0 24 24" fill="none"><path d="M12 16v-4M12 8h.01M12 22c5.5 0 10-4.5 10-10S17.5 2 12 2 2 6.5 2 12s4.5 10 10 10Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>All three formats are also available straight from the CLI — no <code>rscan serve</code> needed. See <a href="#scan">rscan scan</a> and <a href="#credential-scan">rscan credential-scan</a>'s <code>--format csv|ini|xlsx</code>.</p>
+      </div>
     </section>
 
     <section id="settings">
@@ -924,6 +935,8 @@ rscan credential-scan -f known-hosts.csv --json &gt; credentialed-inventory.json
       <h4>F — Generate an osstats-compatible INI</h4>
       <p>Run a UI scan (or start one via the API), review Results, leave Hide duplicates checked for one endpoint per detected backing database, then click INI export. Or via API:</p>
       <pre><code>curl -sS 'http://localhost:3000/api/export/ini?excludeDuplicates=true' -o config.ini</code></pre>
+      <p>Or skip the Web UI entirely and get the same INI straight from the CLI:</p>
+      <pre><code>rscan scan -c 10.0.0.0/24 --format ini &gt; config.ini</code></pre>
       <h4>G — Iterating on a batch of credentials</h4>
       <ul class="clean">
         <li>Run a scan (Discover, or Credential Scan with whatever credentials you have) and open Results.</li>

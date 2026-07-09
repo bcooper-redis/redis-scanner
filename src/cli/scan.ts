@@ -3,7 +3,7 @@ import { discover } from '../inventory/discover';
 import type { DiscoverOptions } from '../inventory/discover';
 import { expandPorts } from '../scanner/ports';
 import { detectLocalCidrs } from '../scanner/cidr';
-import { formatTable, formatJson } from './format';
+import { resolveFormat, writeFormattedOutput } from './outputFormat';
 import { clearLine, writeProgress } from './progress';
 import type { ScanConfig } from '../types';
 
@@ -17,6 +17,7 @@ interface ScanOpts {
   password?: string;
   username?: string;
   json: boolean;
+  format?: string;
 }
 
 export function registerScan(program: Command): void {
@@ -38,12 +39,15 @@ export function registerScan(program: Command): void {
     .option('--tls-skip-verify', 'skip TLS certificate verification (self-signed certs)', false)
     .option('--password <pass>', 'authenticate with this password (never logged or persisted)')
     .option('--username <user>', 'authenticate with this username (ACL; requires --password)')
-    .option('--json', 'output results as JSON', false)
+    .option('--json', 'output results as JSON (shorthand for --format json)', false)
+    .option('--format <format>', 'output format: table, json, csv, ini, or xlsx')
     .action(async (opts: ScanOpts) => {
       if (opts.username && !opts.password) {
         process.stderr.write('Error: --username requires --password\n');
         process.exit(1);
       }
+
+      const format = resolveFormat(opts.format, opts.json);
 
       let cidrs = opts.cidr;
       if (cidrs.length === 0) {
@@ -114,7 +118,6 @@ export function registerScan(program: Command): void {
       const foundStr = `${results.length} Redis instance${results.length === 1 ? '' : 's'}`;
       process.stderr.write(`Scanned ${targetStr}; found ${openStr}, ${foundStr}.\n`);
 
-      const output = opts.json ? formatJson(results) : formatTable(results);
-      process.stdout.write(output + '\n');
+      writeFormattedOutput(format, results);
     });
 }

@@ -4,7 +4,7 @@ import { credentialScan } from '../inventory/credentialScan';
 import type { CredentialScanOptions } from '../inventory/credentialScan';
 import { parseCredentialCsv } from '../scanner/credentialCsv';
 import { parseCredentialIni } from '../scanner/credentialIni';
-import { formatTable, formatJson } from './format';
+import { resolveFormat, writeFormattedOutput } from './outputFormat';
 import { clearLine, writeProgress } from './progress';
 
 interface CredentialScanOpts {
@@ -14,6 +14,7 @@ interface CredentialScanOpts {
   tls: boolean;
   tlsSkipVerify: boolean;
   json: boolean;
+  format?: string;
 }
 
 export function registerCredentialScan(program: Command): void {
@@ -32,8 +33,11 @@ export function registerCredentialScan(program: Command): void {
     .option('--concurrency <n>', 'max concurrent connections', '100')
     .option('--tls', 'attempt TLS first; falls back to plain on handshake failure', false)
     .option('--tls-skip-verify', 'skip TLS certificate verification (self-signed certs)', false)
-    .option('--json', 'output results as JSON', false)
+    .option('--json', 'output results as JSON (shorthand for --format json)', false)
+    .option('--format <format>', 'output format: table, json, csv, ini, or xlsx')
     .action(async (opts: CredentialScanOpts) => {
+      const format = resolveFormat(opts.format, opts.json);
+
       let fileText: string;
       try {
         fileText = fs.readFileSync(opts.file, 'utf8');
@@ -96,7 +100,6 @@ export function registerCredentialScan(program: Command): void {
       const foundStr = `${results.length} Redis instance${results.length === 1 ? '' : 's'}`;
       process.stderr.write(`Scanned ${targetStr}; found ${openStr}, ${foundStr}.\n`);
 
-      const output = opts.json ? formatJson(results) : formatTable(results);
-      process.stdout.write(output + '\n');
+      writeFormattedOutput(format, results);
     });
 }

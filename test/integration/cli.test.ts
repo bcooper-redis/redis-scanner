@@ -13,6 +13,18 @@ function rscan(...args: string[]): { stdout: string; stderr: string; status: num
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
 }
 
+// Unlike rscan(), does not force utf8 decoding on stdout — needed to check
+// --format xlsx output, which is binary and would otherwise get corrupted
+// by lossy UTF-8 decoding before the test ever sees the bytes.
+function rscanBuffer(...args: string[]): { stdout: Buffer; stderr: string; status: number | null } {
+  const r = spawnSync('node', [CLI, ...args], { cwd: ROOT });
+  return {
+    stdout: r.stdout ?? Buffer.alloc(0),
+    stderr: (r.stderr ?? Buffer.alloc(0)).toString('utf8'),
+    status: r.status,
+  };
+}
+
 async function waitForServer(url: string, maxMs: number): Promise<void> {
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
@@ -150,6 +162,88 @@ describe('rscan CLI', () => {
     it('JSON is empty array for closed port', () => {
       const { stdout } = rscan('scan', '-c', '127.0.0.1/32', '-p', '19999', '--json');
       expect(JSON.parse(stdout)).toEqual([]);
+    });
+  });
+
+  describe('rscan scan --format', () => {
+    it('writes CSV with a header row and the discovered host', () => {
+      const { stdout, status } = rscan(
+        'scan',
+        '-c',
+        '127.0.0.1/32',
+        '-p',
+        REDIS_8_PORT,
+        '--format',
+        'csv',
+      );
+      expect(status).toBe(0);
+      expect(stdout).toContain('Host,Port');
+      expect(stdout).toContain('127.0.0.1');
+    });
+
+    it('writes an osstats-compatible INI section for the discovered host', () => {
+      const { stdout, status } = rscan(
+        'scan',
+        '-c',
+        '127.0.0.1/32',
+        '-p',
+        REDIS_8_PORT,
+        '--format',
+        'ini',
+      );
+      expect(status).toBe(0);
+      expect(stdout).toContain(`[127.0.0.1:${REDIS_8_PORT}]`);
+      expect(stdout).toContain('username    = ');
+    });
+
+    it('writes binary XLSX (zip-format) bytes to stdout', () => {
+      const { stdout, status } = rscanBuffer(
+        'scan',
+        '-c',
+        '127.0.0.1/32',
+        '-p',
+        REDIS_8_PORT,
+        '--format',
+        'xlsx',
+      );
+      expect(status).toBe(0);
+      expect(stdout.subarray(0, 4).toString('latin1')).toBe('PK\x03\x04');
+    });
+
+    it('still supports --json as a shorthand for --format json', () => {
+      const { stdout, status } = rscan('scan', '-c', '127.0.0.1/32', '-p', REDIS_8_PORT, '--json');
+      expect(status).toBe(0);
+      expect(JSON.parse(stdout)).toHaveLength(1);
+    });
+
+    it('lets an explicit --format win when --json is also given', () => {
+      const { stdout, status } = rscan(
+        'scan',
+        '-c',
+        '127.0.0.1/32',
+        '-p',
+        REDIS_8_PORT,
+        '--json',
+        '--format',
+        'csv',
+      );
+      expect(status).toBe(0);
+      expect(stdout).toContain('Host,Port');
+      expect(() => JSON.parse(stdout)).toThrow();
+    });
+
+    it('exits 1 on an unrecognized --format value', () => {
+      const { stderr, status } = rscan(
+        'scan',
+        '-c',
+        '127.0.0.1/32',
+        '-p',
+        REDIS_8_PORT,
+        '--format',
+        'yaml',
+      );
+      expect(status).toBe(1);
+      expect(stderr).toContain('invalid --format "yaml"');
     });
   });
 
@@ -320,6 +414,37 @@ describe('rscan CLI', () => {
         const [r] = JSON.parse(stdout);
         expect(r.authenticatedStatus).toBe('auth_failed');
       });
+    });
+  });
+
+  describe('rscan credential-scan --format', () => {
+    it('writes CSV with a header row and the discovered host', () => {
+      const file = writeTempCsv(`127.0.0.1,${REDIS_8_PORT},,\n`);
+      const { stdout, status } = rscan('credential-scan', '-f', file, '--format', 'csv');
+      expect(status).toBe(0);
+      expect(stdout).toContain('Host,Port');
+      expect(stdout).toContain('127.0.0.1');
+    });
+
+    it('writes an osstats-compatible INI section for the discovered host', () => {
+      const file = writeTempCsv(`127.0.0.1,${REDIS_8_PORT},,\n`);
+      const { stdout, status } = rscan('credential-scan', '-f', file, '--format', 'ini');
+      expect(status).toBe(0);
+      expect(stdout).toContain(`[127.0.0.1:${REDIS_8_PORT}]`);
+    });
+
+    it('writes binary XLSX (zip-format) bytes to stdout', () => {
+      const file = writeTempCsv(`127.0.0.1,${REDIS_8_PORT},,\n`);
+      const { stdout, status } = rscanBuffer('credential-scan', '-f', file, '--format', 'xlsx');
+      expect(status).toBe(0);
+      expect(stdout.subarray(0, 4).toString('latin1')).toBe('PK\x03\x04');
+    });
+
+    it('exits 1 on an unrecognized --format value', () => {
+      const file = writeTempCsv(`127.0.0.1,${REDIS_8_PORT},,\n`);
+      const { stderr, status } = rscan('credential-scan', '-f', file, '--format', 'yaml');
+      expect(status).toBe(1);
+      expect(stderr).toContain('invalid --format "yaml"');
     });
   });
 
