@@ -4,6 +4,10 @@
   const submitBtn = document.getElementById('submit-btn');
   const csvUpload = document.getElementById('csv-upload');
   const csvUploadStatus = document.getElementById('csv-upload-status');
+  const largeScanDialog = document.getElementById('large-scan-warning-dialog');
+  const largeScanText = document.getElementById('large-scan-warning-text');
+  const largeScanProceedBtn = document.getElementById('large-scan-proceed-btn');
+  const largeScanCancelBtn = document.getElementById('large-scan-cancel-btn');
 
   const SESSION_KEY = 'rscan.credentialScanState';
   let parsedTargets = [];
@@ -256,23 +260,12 @@
     reader.readAsText(file);
   });
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    clearError();
-    if (parsedTargets.length === 0) {
-      showError('Upload a CSV file with at least one valid target first.');
-      return;
-    }
+  // Submits body to /api/credential-scan. On a SCAN_TOO_LARGE 400, shows a
+  // confirm dialog instead of the plain error banner; clicking Proceed
+  // re-calls this with force:true merged in.
+  async function submitScan(body) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Starting…';
-
-    const body = {
-      targets: parsedTargets,
-      timeoutMs: Number(form.timeoutMs.value) || undefined,
-      concurrency: Number(form.concurrency.value) || undefined,
-      tls: form.tls.checked,
-      tlsSkipVerify: form.tlsSkipVerify.checked,
-    };
 
     try {
       const res = await fetch('/api/credential-scan', {
@@ -282,16 +275,54 @@
       });
       const data = await res.json();
       if (!res.ok) {
-        showError(data.error || `Scan failed to start (HTTP ${res.status}).`);
         submitBtn.disabled = false;
         submitBtn.textContent = 'Start Credential Scan';
+        if (data.code === 'SCAN_TOO_LARGE') {
+          largeScanText.textContent =
+            `This scan targets an estimated ${data.totalTargets.toLocaleString()} hosts. ` +
+            `Proceeding may take a while and generate a lot of connection attempts.`;
+          largeScanDialog.showModal();
+          return;
+        }
+        showError(data.error || `Scan failed to start (HTTP ${res.status}).`);
         return;
       }
       window.location.href = '/results.html';
     } catch {
-      showError('Could not reach the server. Is rscan serve still running?');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Start Credential Scan';
+      showError('Could not reach the server. Is rscan serve still running?');
     }
+  }
+
+  let lastSubmittedBody = null;
+
+  largeScanCancelBtn.addEventListener('click', () => {
+    largeScanDialog.close();
+  });
+
+  largeScanProceedBtn.addEventListener('click', () => {
+    largeScanDialog.close();
+    if (lastSubmittedBody) void submitScan({ ...lastSubmittedBody, force: true });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    clearError();
+    if (parsedTargets.length === 0) {
+      showError('Upload a CSV file with at least one valid target first.');
+      return;
+    }
+
+    const body = {
+      targets: parsedTargets,
+      timeoutMs: Number(form.timeoutMs.value) || undefined,
+      concurrency: Number(form.concurrency.value) || undefined,
+      tls: form.tls.checked,
+      tlsSkipVerify: form.tlsSkipVerify.checked,
+    };
+
+    lastSubmittedBody = body;
+    void submitScan(body);
   });
 })();

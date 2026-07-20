@@ -1,10 +1,17 @@
 export {
   expandCidr,
   cidrHostCount,
+  estimateHostCount,
   detectLocalCidrs,
   assertScanSize,
   MAX_SCAN_HOSTS,
 } from './cidr';
+export {
+  estimateScanTargets,
+  assertScanNotTooLarge,
+  LargeScanError,
+  LARGE_SCAN_THRESHOLD,
+} from './scanSize';
 export { resolveHosts } from './hostname';
 export type { ResolvedHost } from './hostname';
 export { expandPorts } from './ports';

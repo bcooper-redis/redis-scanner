@@ -15,6 +15,7 @@ interface CredentialScanOpts {
   tlsSkipVerify: boolean;
   json: boolean;
   format?: string;
+  force: boolean;
 }
 
 export function registerCredentialScan(program: Command): void {
@@ -35,6 +36,7 @@ export function registerCredentialScan(program: Command): void {
     .option('--tls-skip-verify', 'skip TLS certificate verification (self-signed certs)', false)
     .option('--json', 'output results as JSON (shorthand for --format json)', false)
     .option('--format <format>', 'output format: table, json, csv, ini, or xlsx')
+    .option('--force', 'proceed even if the file has an unusually large number of targets', false)
     .action(async (opts: CredentialScanOpts) => {
       const format = resolveFormat(opts.format, opts.json);
 
@@ -84,6 +86,7 @@ export function registerCredentialScan(program: Command): void {
             concurrency,
             tls: opts.tls,
             tlsSkipVerify: opts.tlsSkipVerify,
+            force: opts.force,
           },
           scanOpts,
         );

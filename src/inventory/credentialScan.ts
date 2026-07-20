@@ -1,4 +1,5 @@
 import { scanTargets } from '../scanner/scan';
+import { assertScanNotTooLarge } from '../scanner/scanSize';
 import { createLimiter } from '../scanner/concurrency';
 import type { ScanController } from '../scanner/control';
 import { probeHost } from '../probe/index';
@@ -21,6 +22,8 @@ export interface CredentialScanConfig {
   tls: boolean;
   tlsSkipVerify: boolean;
   concurrency: number;
+  /** Bypasses the large-scan warning (see scanner/scanSize.ts). Defaults to false. */
+  force?: boolean;
 }
 
 export interface CredentialScanOptions {
@@ -50,6 +53,8 @@ export async function credentialScan(
   config: CredentialScanConfig,
   options: CredentialScanOptions = {},
 ): Promise<DiscoveryResult[]> {
+  assertScanNotTooLarge(config.targets.length, config.force ?? false);
+
   // Same host:port listed more than once (e.g. a duplicated CSV row) is
   // scanned exactly once — the last matching row's credentials win — rather
   // than probing and reporting the same target twice.

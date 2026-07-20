@@ -245,6 +245,35 @@ describe('POST /api/scan', () => {
     expect(r.status).toBe(400);
   });
 
+  it('returns 400 with code SCAN_TOO_LARGE when host×port total is over the large-scan threshold', async () => {
+    const r = await fetch(`${server.url}/api/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cidrs: ['192.168.1.0/32'], ports: '1-10000' }),
+    });
+    expect(r.status).toBe(400);
+    const body = (await r.json()) as { error: string; code: string; totalTargets: number };
+    expect(body.code).toBe('SCAN_TOO_LARGE');
+    expect(body.totalTargets).toBe(10000);
+  });
+
+  it('proceeds past the large-scan threshold when force:true is set', async () => {
+    const r = await fetch(`${server.url}/api/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cidrs: ['192.168.1.0/32'],
+        ports: '1-10000',
+        timeoutMs: 100,
+        concurrency: 1000,
+        force: true,
+      }),
+    });
+    expect(r.status).toBe(202);
+    const finalState = await poll(server.url);
+    expect(finalState.status).toBe('done');
+  }, 20000);
+
   it('reports progress in GET /api/results during scan', async () => {
     await fetch(`${server.url}/api/scan`, {
       method: 'POST',
@@ -449,7 +478,12 @@ describe('POST /api/credential-scan', () => {
     const r = await fetch(`${server.url}/api/credential-scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targets: [{ host: '127.0.0.1', port: 6379 }, { host: '', port: 6380 }] }),
+      body: JSON.stringify({
+        targets: [
+          { host: '127.0.0.1', port: 6379 },
+          { host: '', port: 6380 },
+        ],
+      }),
     });
     expect(r.status).toBe(400);
     const body = (await r.json()) as { error: string };
@@ -474,11 +508,45 @@ describe('POST /api/credential-scan', () => {
     expect(finalState.results[0]?.product).toBe('redis');
   }, 20000);
 
+  it('returns 400 with code SCAN_TOO_LARGE when target count is over the large-scan threshold', async () => {
+    const targets = Array.from({ length: 5001 }, (_, i) => ({
+      host: '10.0.0.1',
+      port: 6379 + (i % 1000),
+    }));
+    const r = await fetch(`${server.url}/api/credential-scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targets }),
+    });
+    expect(r.status).toBe(400);
+    const body = (await r.json()) as { error: string; code: string; totalTargets: number };
+    expect(body.code).toBe('SCAN_TOO_LARGE');
+    expect(body.totalTargets).toBe(5001);
+  });
+
+  it('proceeds past the large-scan threshold when force:true is set', async () => {
+    const targets = Array.from({ length: 5001 }, (_, i) => ({
+      host: '127.0.0.1',
+      port: 20000 + i,
+    }));
+    const r = await fetch(`${server.url}/api/credential-scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targets, timeoutMs: 100, concurrency: 1000, force: true }),
+    });
+    expect(r.status).toBe(202);
+    const finalState = await poll(server.url);
+    expect(finalState.status).toBe('done');
+  }, 20000);
+
   it('returns 409 when a scan is already running', async () => {
     await fetch(`${server.url}/api/credential-scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targets: [{ host: '127.0.0.1', port: REDIS_8_PORT }], timeoutMs: 3000 }),
+      body: JSON.stringify({
+        targets: [{ host: '127.0.0.1', port: REDIS_8_PORT }],
+        timeoutMs: 3000,
+      }),
     });
     const r = await fetch(`${server.url}/api/credential-scan`, {
       method: 'POST',
@@ -492,7 +560,10 @@ describe('POST /api/credential-scan', () => {
     await fetch(`${server.url}/api/credential-scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targets: [{ host: '127.0.0.1', port: REDIS_8_PORT }], timeoutMs: 3000 }),
+      body: JSON.stringify({
+        targets: [{ host: '127.0.0.1', port: REDIS_8_PORT }],
+        timeoutMs: 3000,
+      }),
     });
     const finalState = await poll(server.url);
     expect(finalState.restartable).toBe(false);

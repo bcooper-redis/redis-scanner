@@ -4,6 +4,10 @@
   const submitBtn = document.getElementById('submit-btn');
   const csvUpload = document.getElementById('csv-upload');
   const csvUploadStatus = document.getElementById('csv-upload-status');
+  const largeScanDialog = document.getElementById('large-scan-warning-dialog');
+  const largeScanText = document.getElementById('large-scan-warning-text');
+  const largeScanProceedBtn = document.getElementById('large-scan-proceed-btn');
+  const largeScanCancelBtn = document.getElementById('large-scan-cancel-btn');
 
   const SESSION_KEY = 'rscan.dashboardState';
 
@@ -152,11 +156,57 @@
     reader.readAsText(file);
   });
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    clearError();
+  // Submits body to /api/scan. On a SCAN_TOO_LARGE 400, shows a confirm
+  // dialog instead of the plain error banner; clicking Proceed re-calls this
+  // with force:true merged in, so the large-scan check only ever needs to
+  // run once more, server-side, rather than duplicating its host×port math
+  // here in the browser.
+  async function submitScan(body) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Starting…';
+
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Start Scan';
+        if (data.code === 'SCAN_TOO_LARGE') {
+          largeScanText.textContent =
+            `This scan targets an estimated ${data.totalTargets.toLocaleString()} host:port ` +
+            `combinations. Proceeding may take a while and generate a lot of connection attempts.`;
+          largeScanDialog.showModal();
+          return;
+        }
+        showError(data.error || `Scan failed to start (HTTP ${res.status}).`);
+        return;
+      }
+      window.location.href = '/results.html';
+    } catch {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Start Scan';
+      showError('Could not reach the server. Is rscan serve still running?');
+    }
+  }
+
+  let lastSubmittedBody = null;
+
+  largeScanCancelBtn.addEventListener('click', () => {
+    largeScanDialog.close();
+  });
+
+  largeScanProceedBtn.addEventListener('click', () => {
+    largeScanDialog.close();
+    if (lastSubmittedBody) void submitScan({ ...lastSubmittedBody, force: true });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    clearError();
 
     const cidrs = form.cidrs.value
       .split('\n')
@@ -176,24 +226,7 @@
       if (form.username.value) body.username = form.username.value;
     }
 
-    try {
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showError(data.error || `Scan failed to start (HTTP ${res.status}).`);
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Start Scan';
-        return;
-      }
-      window.location.href = '/results.html';
-    } catch {
-      showError('Could not reach the server. Is rscan serve still running?');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Start Scan';
-    }
+    lastSubmittedBody = body;
+    void submitScan(body);
   });
 })();

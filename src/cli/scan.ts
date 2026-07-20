@@ -18,6 +18,7 @@ interface ScanOpts {
   username?: string;
   json: boolean;
   format?: string;
+  force: boolean;
 }
 
 export function registerScan(program: Command): void {
@@ -41,6 +42,11 @@ export function registerScan(program: Command): void {
     .option('--username <user>', 'authenticate with this username (ACL; requires --password)')
     .option('--json', 'output results as JSON (shorthand for --format json)', false)
     .option('--format <format>', 'output format: table, json, csv, ini, or xlsx')
+    .option(
+      '--force',
+      'proceed even if the scan targets an unusually large number of hosts/ports',
+      false,
+    )
     .action(async (opts: ScanOpts) => {
       if (opts.username && !opts.password) {
         process.stderr.write('Error: --username requires --password\n');
@@ -80,6 +86,7 @@ export function registerScan(program: Command): void {
         tls: opts.tls,
         tlsSkipVerify: opts.tlsSkipVerify,
         concurrency,
+        force: opts.force,
       };
 
       const credentials =

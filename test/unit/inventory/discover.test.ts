@@ -137,3 +137,31 @@ describe('discover — run_id duplicate grouping', () => {
     expect(results.map((r) => r.port)).toEqual(byPort.map((m) => m.port));
   });
 });
+
+describe('discover — large scan guard', () => {
+  it('rejects before scanning when total targets (hosts × ports) exceed the threshold', async () => {
+    await expect(
+      discover({
+        cidrs: ['10.0.0.0/24'], // 254 hosts
+        ports: Array.from({ length: 30 }, (_, i) => 6000 + i), // 30 ports → 7620 total
+        timeoutMs: 1000,
+        tls: false,
+        tlsSkipVerify: false,
+        concurrency: 100,
+      }),
+    ).rejects.toThrow(/estimated 7,620/);
+  });
+
+  it('proceeds when force is true, even above the threshold', async () => {
+    const results = await discover({
+      cidrs: ['127.0.0.1'],
+      ports: Array.from({ length: 5001 }, (_, i) => 20000 + i),
+      timeoutMs: 500,
+      tls: false,
+      tlsSkipVerify: false,
+      concurrency: 500,
+      force: true,
+    });
+    expect(results).toEqual([]);
+  }, 20000);
+});

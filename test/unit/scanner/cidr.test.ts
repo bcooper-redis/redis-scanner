@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   expandCidr,
   cidrHostCount,
+  estimateHostCount,
   detectLocalCidrs,
   assertScanSize,
 } from '../../../src/scanner/cidr';
@@ -68,6 +69,16 @@ describe('cidrHostCount', () => {
   it('/30 → 2', () => expect(cidrHostCount('10.0.0.0/30')).toBe(2));
   it('/24 → 254', () => expect(cidrHostCount('10.0.0.0/24')).toBe(254));
   it('/16 → 65534', () => expect(cidrHostCount('10.0.0.0/16')).toBe(65534));
+});
+
+describe('estimateHostCount', () => {
+  it('sums CIDR host counts', () => {
+    expect(estimateHostCount(['10.0.0.0/24', '10.1.0.0/24'])).toBe(508);
+  });
+
+  it('counts a bare IP or hostname as a single host', () => {
+    expect(estimateHostCount(['10.0.0.5', 'redis.example.com'])).toBe(2);
+  });
 });
 
 describe('assertScanSize', () => {

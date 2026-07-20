@@ -179,6 +179,8 @@ export interface ScanConfig {
   tls: boolean;
   tlsSkipVerify: boolean;
   concurrency: number;
+  /** Bypasses the large-scan warning (see scanner/scanSize.ts). Defaults to false. */
+  force?: boolean;
 }
 
 export interface AuthCredentials {

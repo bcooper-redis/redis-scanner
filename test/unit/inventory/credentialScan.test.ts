@@ -50,7 +50,10 @@ interface MockRedis {
  * so a test can prove AUTH was (or wasn't) attempted, not just infer it from
  * the final result.
  */
-function startMockRedis(expectedPassword: string | null, runId = 'mock-run-id'): Promise<MockRedis> {
+function startMockRedis(
+  expectedPassword: string | null,
+  runId = 'mock-run-id',
+): Promise<MockRedis> {
   let authed = expectedPassword === null;
   let authCount = 0;
   const server = net.createServer((socket) => {
@@ -71,7 +74,9 @@ function startMockRedis(expectedPassword: string | null, runId = 'mock-run-id'):
         } else if (cmd === 'ping') {
           socket.write(authed ? '+PONG\r\n' : '-NOAUTH Authentication required.\r\n');
         } else if (cmd === 'info') {
-          socket.write(authed ? bulkString(buildInfo(runId)) : '-NOAUTH Authentication required.\r\n');
+          socket.write(
+            authed ? bulkString(buildInfo(runId)) : '-NOAUTH Authentication required.\r\n',
+          );
         } else if (cmd === 'module') {
           socket.write(authed ? '*0\r\n' : '-NOAUTH Authentication required.\r\n');
         }
@@ -225,9 +230,7 @@ describe('credentialScan — unreachable and non-Redis targets', () => {
     const server = net.createServer();
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const { port } = server.address() as net.AddressInfo;
-    await new Promise<void>((resolve, reject) =>
-      server.close((e) => (e ? reject(e) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
 
     const results = await credentialScan({
       targets: [{ host: '127.0.0.1', port, password: 'whatever' }],
@@ -255,7 +258,8 @@ describe('credentialScan — TLS', () => {
         socket.on('data', (data) => {
           for (const args of parseAllRespCommands(data)) {
             const cmd = (args[0] ?? '').toLowerCase();
-            if (cmd === 'auth') socket.write('-WRONGPASS invalid username-password pair or user is disabled.\r\n');
+            if (cmd === 'auth')
+              socket.write('-WRONGPASS invalid username-password pair or user is disabled.\r\n');
             else if (cmd === 'client') socket.write('+OK\r\n');
           }
         });
@@ -271,12 +275,44 @@ describe('credentialScan — TLS', () => {
       tlsSkipVerify: true,
       concurrency: 10,
     });
-    await new Promise<void>((resolve, reject) =>
-      server.close((e) => (e ? reject(e) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
 
     expect(results[0].authenticatedStatus).toBe('auth_failed');
     expect(results[0].tlsCertificate).not.toBeNull();
     expect(results[0].tlsCertificate!.subject).toBe('localhost');
   });
+});
+
+describe('credentialScan — large scan guard', () => {
+  it('rejects before scanning when target count exceeds the threshold', async () => {
+    const manyTargets = Array.from({ length: 5001 }, (_, i) => ({
+      host: '10.0.0.1',
+      port: 6379 + i,
+    }));
+    await expect(
+      credentialScan({
+        targets: manyTargets,
+        timeoutMs: 1000,
+        tls: false,
+        tlsSkipVerify: false,
+        concurrency: 100,
+      }),
+    ).rejects.toThrow(/estimated 5,001/);
+  });
+
+  it('proceeds when force is true, even above the threshold', async () => {
+    const manyTargets = Array.from({ length: 5001 }, (_, i) => ({
+      host: '127.0.0.1',
+      port: 20000 + i,
+    }));
+    const results = await credentialScan({
+      targets: manyTargets,
+      timeoutMs: 500,
+      tls: false,
+      tlsSkipVerify: false,
+      concurrency: 500,
+      force: true,
+    });
+    expect(results).toEqual([]);
+  }, 20000);
 });

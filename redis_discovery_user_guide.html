@@ -291,6 +291,7 @@ ul.clean li::before { content:""; position:absolute; left: 2px; top: 13px; width
         <li>CSV export is now a complete dump of every field the JSON API returns, not just what the results table shows.</li>
         <li>The results table's Memory column shows used memory versus the configured maximum, not just used memory.</li>
         <li><code>rscan scan</code> and <code>rscan credential-scan</code> now support <code>--format csv</code>, <code>--format ini</code>, and <code>--format xlsx</code> — the same export shapes as the Web UI's Results page, straight from the CLI. <code>--json</code> still works as a shorthand for <code>--format json</code>.</li>
+        <li>A scan whose host×port total is over 5,000 now needs an explicit <code>--force</code> (CLI) or a Proceed click (Web UI) to run — see <a href="#scan">rscan scan</a> and <a href="#troubleshooting">Troubleshooting</a>.</li>
       </ul>
     </div>
 
@@ -377,6 +378,7 @@ rscan serve --help</code></pre>
           <tr><td><code>--password &lt;pass&gt;</code></td><td>None</td><td>Password used only for this scan. It is not logged, printed, or persisted.</td></tr>
           <tr><td><code>--format &lt;format&gt;</code></td><td>table</td><td>Output format: <code>table</code>, <code>json</code>, <code>csv</code>, <code>ini</code>, or <code>xlsx</code> — the same shapes the Web UI's Results page exports.</td></tr>
           <tr><td><code>--json</code></td><td>Off</td><td>Shorthand for <code>--format json</code>. Kept for backward compatibility; an explicit <code>--format</code> wins if both are given.</td></tr>
+          <tr><td><code>--force</code></td><td>Off</td><td>Proceed even if the scan targets more than 5,000 host:port combinations (hosts × ports). See <a href="#troubleshooting">Troubleshooting</a>.</td></tr>
         </tbody>
       </table></div>
 
@@ -451,7 +453,7 @@ rscan scan -c 10.0.0.0/24 -p 6379,6380 --format xlsx &gt; redis-discovery-result
 10.0.0.13  6380  yes  valkey     8.0.0    required  —       —                   9ms</code></pre>
 
       <h4>Exit behavior</h4>
-      <p>A completed scan exits <code>0</code>, including the case where no Redis instances are found. Usage or input errors exit <code>1</code> — for example an invalid CIDR, invalid port specification, <code>--username</code> without <code>--password</code>, scan expansion above the safety cap, or no CIDR supplied and no local subnet detected.</p>
+      <p>A completed scan exits <code>0</code>, including the case where no Redis instances are found. Usage or input errors exit <code>1</code> — for example an invalid CIDR, invalid port specification, <code>--username</code> without <code>--password</code>, scan expansion above the safety cap, an unusually large host×port total without <code>--force</code>, or no CIDR supplied and no local subnet detected.</p>
 
       <h4>Common scan recipes</h4>
       <pre><code>rscan scan -c 127.0.0.1/32                               <span class="c"># localhost only</span>
@@ -466,7 +468,9 @@ rscan scan -c 10.20.0.0/24 -p 12000-12050 --json &gt; redis-enterprise-scan.json
 rscan scan -c 10.0.0.0/24 --json &gt; results.json
 rscan scan -c 10.0.0.0/24 --json &gt; results.json 2&gt; scan.log
 <span class="c"># Slower network timeout</span>
-rscan scan -c 10.0.0.0/16 -p 6379 -t 3000 --concurrency 200</code></pre>
+rscan scan -c 10.0.0.0/16 -p 6379 -t 3000 --concurrency 200
+<span class="c"># A single host with a wide port range is 10,000 targets — needs --force</span>
+rscan scan -c 10.0.0.42/32 -p 1-10000 --force</code></pre>
     </section>
 
     <section id="credential-scan">
@@ -486,6 +490,7 @@ rscan scan -c 10.0.0.0/16 -p 6379 -t 3000 --concurrency 200</code></pre>
           <tr><td><code>--tls-skip-verify</code></td><td>Off</td><td>Skip certificate verification for self-signed or privately issued certificates.</td></tr>
           <tr><td><code>--format &lt;format&gt;</code></td><td>table</td><td>Output format: <code>table</code>, <code>json</code>, <code>csv</code>, <code>ini</code>, or <code>xlsx</code>.</td></tr>
           <tr><td><code>--json</code></td><td>Off</td><td>Shorthand for <code>--format json</code>. Kept for backward compatibility; an explicit <code>--format</code> wins if both are given.</td></tr>
+          <tr><td><code>--force</code></td><td>Off</td><td>Proceed even if the file has more than 5,000 targets. See <a href="#troubleshooting">Troubleshooting</a>.</td></tr>
         </tbody>
       </table></div>
 
@@ -602,6 +607,8 @@ redis.example.com:6380
         <li>Credentials are not stored, logged, or persisted. Leave both blank to scan anonymously.</li>
         <li>Use Credential Scan if each host has different credentials.</li>
       </ul>
+      <h4>Large scan warning</h4>
+      <p>If the targets and ports add up to more than 5,000 host:port combinations, clicking <b>Start Scan</b> shows a dialog with the estimated total instead of starting immediately. <b>Proceed</b> starts the scan anyway; <b>Cancel</b> closes the dialog and leaves the form as you had it. This is the Web UI equivalent of the CLI's <code>--force</code> flag — see <a href="#scan">rscan scan</a>.</p>
       <p><b>Start Scan</b> begins the scan and navigates to Results. If a scan is already running or paused, the request is rejected until it finishes or is stopped.</p>
     </section>
 
@@ -619,7 +626,7 @@ redis.example.com:6380
         <li>The file is parsed in the browser — the raw CSV is not uploaded; parsed values are sent when the scan starts. Each row's credentials are used only for that row.</li>
         <li>You can also upload an <code>.ini</code> file — the same format Export INI produces. Iterate: run a scan, Export INI, fill in credentials in a text editor, then upload here. Format is chosen from the extension.</li>
       </ul>
-      <p>Timeout and Concurrency behave as on the Discover page; the same TLS-first and skip-verify checkboxes apply. <b>Start Credential Scan</b> stays disabled until a valid CSV is loaded. Results appear on the shared Results page. Credential scans are not restartable from Results because per-row credentials are not retained.</p>
+      <p>Timeout and Concurrency behave as on the Discover page; the same TLS-first and skip-verify checkboxes apply. <b>Start Credential Scan</b> stays disabled until a valid CSV is loaded. If the file has more than 5,000 rows, clicking it shows the same large scan warning dialog as Discover — see <a href="#discover">Discover page</a>. Results appear on the shared Results page. Credential scans are not restartable from Results because per-row credentials are not retained.</p>
     </section>
 
     <section id="results">
@@ -871,6 +878,11 @@ dig redis.example.com A</code></pre>
       <pre><code>rscan scan -c 10.0.0.0/24
 rscan scan -c 10.0.1.0/24
 rscan scan -c 10.0.2.0/24</code></pre>
+      <h4>"This scan targets an estimated N host:port combinations..." / large scan dialog</h4>
+      <p>Above 5,000 total host:port combinations (hosts × ports), <code>rscan scan</code>/<code>credential-scan</code> stop and ask for confirmation rather than running an oversized scan unnoticed — a wide port range against even a single host adds up fast, e.g. <code>-p 1-10000</code> against one host is already 10,000. This is a heads-up, not a hard limit:</p>
+      <pre><code><span class="c"># CLI: re-run with --force once you've confirmed the total is intended</span>
+rscan scan -c 10.0.0.42/32 -p 1-10000 --force</code></pre>
+      <p>In the Web UI, the same check shows a <b>Large scan</b> dialog on the Discover/Credential Scan pages with a Proceed button instead of a flag.</p>
       <h4>Web UI cannot reach the server</h4>
       <pre><code>rscan serve --port 3000 --host localhost   <span class="c"># then open http://localhost:3000</span></code></pre>
       <h4>Build cannot find HTMX assets</h4>

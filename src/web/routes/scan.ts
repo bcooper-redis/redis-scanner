@@ -4,6 +4,7 @@ import { credentialScan } from '../../inventory/credentialScan';
 import type { CredentialTarget } from '../../inventory/credentialScan';
 import { expandPorts } from '../../scanner/ports';
 import { detectLocalCidrs, assertScanSize } from '../../scanner/cidr';
+import { assertScanNotTooLarge, estimateScanTargets, LargeScanError } from '../../scanner/scanSize';
 import { createScanController } from '../../scanner/control';
 import type { AppState } from '../state';
 import type { ScanConfig, AuthCredentials } from '../../types';
@@ -66,7 +67,9 @@ scanRouter.post('/scan', (req, res) => {
     tlsSkipVerify?: unknown;
     password?: unknown;
     username?: unknown;
+    force?: unknown;
   };
+  const force = body.force === true;
 
   let cidrs: string[];
   let autoDetected = false;
@@ -100,6 +103,18 @@ scanRouter.post('/scan', (req, res) => {
     return;
   }
 
+  try {
+    assertScanNotTooLarge(estimateScanTargets(cidrs, ports.length), force);
+  } catch (e) {
+    if (e instanceof LargeScanError) {
+      res
+        .status(400)
+        .json({ error: e.message, code: 'SCAN_TOO_LARGE', totalTargets: e.totalTargets });
+      return;
+    }
+    throw e;
+  }
+
   const timeoutMs = typeof body.timeoutMs === 'number' ? Math.max(1, body.timeoutMs) : 1000;
   const concurrency = typeof body.concurrency === 'number' ? Math.max(1, body.concurrency) : 100;
   const tls = body.tls === true;
@@ -118,7 +133,7 @@ scanRouter.post('/scan', (req, res) => {
         }
       : undefined;
 
-  const config: ScanConfig = { cidrs, ports, timeoutMs, concurrency, tls, tlsSkipVerify };
+  const config: ScanConfig = { cidrs, ports, timeoutMs, concurrency, tls, tlsSkipVerify, force };
 
   // Runs in background — the caller polls GET /api/results
   launchScan(state, config, cidrs, autoDetected, credentials);
@@ -139,6 +154,7 @@ function launchCredentialScan(
   concurrency: number,
   tls: boolean,
   tlsSkipVerify: boolean,
+  force: boolean,
 ): void {
   const controller = createScanController();
   const targetLabels = targets.map((t) => `${t.host}:${t.port}`);
@@ -146,7 +162,7 @@ function launchCredentialScan(
   const isCurrent = () => state.getGeneration() === generation;
 
   void credentialScan(
-    { targets, timeoutMs, concurrency, tls, tlsSkipVerify },
+    { targets, timeoutMs, concurrency, tls, tlsSkipVerify, force },
     {
       controller,
       onScanProgress: (done, total) => {
@@ -183,7 +199,9 @@ scanRouter.post('/credential-scan', (req, res) => {
     concurrency?: unknown;
     tls?: unknown;
     tlsSkipVerify?: unknown;
+    force?: unknown;
   };
+  const force = body.force === true;
 
   if (!Array.isArray(body.targets) || body.targets.length === 0) {
     res.status(400).json({ error: 'targets must be a non-empty array.' });
@@ -231,13 +249,25 @@ scanRouter.post('/credential-scan', (req, res) => {
     return;
   }
 
+  try {
+    assertScanNotTooLarge(targets.length, force);
+  } catch (e) {
+    if (e instanceof LargeScanError) {
+      res
+        .status(400)
+        .json({ error: e.message, code: 'SCAN_TOO_LARGE', totalTargets: e.totalTargets });
+      return;
+    }
+    throw e;
+  }
+
   const timeoutMs = typeof body.timeoutMs === 'number' ? Math.max(1, body.timeoutMs) : 1000;
   const concurrency = typeof body.concurrency === 'number' ? Math.max(1, body.concurrency) : 100;
   const tls = body.tls === true;
   const tlsSkipVerify = body.tlsSkipVerify === true;
 
   // Runs in background — the caller polls GET /api/results
-  launchCredentialScan(state, targets, timeoutMs, concurrency, tls, tlsSkipVerify);
+  launchCredentialScan(state, targets, timeoutMs, concurrency, tls, tlsSkipVerify, force);
 
   res.status(202).json({ status: 'scanning' });
 });

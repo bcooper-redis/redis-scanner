@@ -1,4 +1,5 @@
 import { assertScanSize } from '../scanner/cidr';
+import { assertScanNotTooLarge, estimateScanTargets } from '../scanner/scanSize';
 import { resolveHosts } from '../scanner/hostname';
 import { buildTargets, scanTargets } from '../scanner/scan';
 import { createLimiter } from '../scanner/concurrency';
@@ -34,6 +35,10 @@ export async function discover(
   options: DiscoverOptions = {},
 ): Promise<DiscoveryResult[]> {
   assertScanSize(config.cidrs);
+  assertScanNotTooLarge(
+    estimateScanTargets(config.cidrs, config.ports.length),
+    config.force ?? false,
+  );
   const hosts = await resolveHosts(config.cidrs, config.timeoutMs);
   const targets = buildTargets(hosts, config.ports);
 

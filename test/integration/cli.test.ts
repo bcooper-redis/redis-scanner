@@ -279,6 +279,30 @@ describe('rscan CLI', () => {
       expect(status).toBe(1);
       expect(stderr).toContain('too large');
     });
+
+    it('exits 1 for a scan whose host×port total is over the large-scan threshold', () => {
+      const { status, stderr } = rscan('scan', '-c', '192.168.1.0/32', '-p', '1-10000');
+      expect(status).toBe(1);
+      expect(stderr).toContain('estimated 10,000');
+      expect(stderr).toContain('--force');
+    });
+
+    it('proceeds past the large-scan threshold with --force', () => {
+      const { status, stderr } = rscan(
+        'scan',
+        '-c',
+        '192.168.1.0/32',
+        '-p',
+        '1-10000',
+        '--force',
+        '-t',
+        '100',
+        '--concurrency',
+        '1000',
+      );
+      expect(status).toBe(0);
+      expect(stderr).not.toContain('estimated');
+    }, 15000);
   });
 
   describe('rscan credential-scan --help', () => {
@@ -349,6 +373,34 @@ describe('rscan CLI', () => {
       expect(stderr).toContain('missing host');
       expect(JSON.parse(stdout)).toHaveLength(1);
     });
+
+    it('exits 1 for a file with more targets than the large-scan threshold', () => {
+      const rows = ['host,port,username,password'];
+      for (let i = 0; i < 5001; i++) rows.push(`10.0.${Math.floor(i / 256)},${6379 + (i % 256)},,`);
+      const file = writeTempCsv(rows.join('\n'));
+      const { status, stderr } = rscan('credential-scan', '-f', file);
+      expect(status).toBe(1);
+      expect(stderr).toContain('estimated 5,001');
+      expect(stderr).toContain('--force');
+    });
+
+    it('proceeds past the large-scan threshold with --force', () => {
+      const rows = ['host,port,username,password'];
+      for (let i = 0; i < 5001; i++) rows.push(`127.0.0.1,${20000 + i},,`);
+      const file = writeTempCsv(rows.join('\n'));
+      const { status, stderr } = rscan(
+        'credential-scan',
+        '-f',
+        file,
+        '--force',
+        '-t',
+        '100',
+        '--concurrency',
+        '1000',
+      );
+      expect(status).toBe(0);
+      expect(stderr).not.toContain('estimated');
+    }, 15000);
 
     it('finds Redis 8.x from an .ini file, chosen by extension instead of --file needing a flag', () => {
       const file = writeTempIni(

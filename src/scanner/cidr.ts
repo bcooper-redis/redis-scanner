@@ -90,18 +90,26 @@ export function cidrHostCount(cidr: string): number {
 export const MAX_SCAN_HOSTS = 65536;
 
 /**
+ * Estimated host count across CIDRs, bare IPs, and hostnames, without
+ * expanding any entry into its actual address list. Bare IPs/hostnames each
+ * count as a single host — a hostname's real fan-out isn't known until it's
+ * actually resolved, but DNS records realistically return a small handful of
+ * addresses at most, nothing like a mistyped wide CIDR.
+ */
+export function estimateHostCount(entries: string[]): number {
+  return entries.reduce((sum, entry) => sum + (entry.includes('/') ? cidrHostCount(entry) : 1), 0);
+}
+
+/**
  * Throws if the combined host count across all entries would exceed
  * MAX_SCAN_HOSTS, so a wide range (e.g. /8 or /0) can't force an unbounded
- * in-memory host×port expansion before scanning even starts. Bare IPs and
- * hostnames each count as a single host — a hostname's real fan-out isn't
- * known until it's actually resolved, but DNS records realistically return a
- * small handful of addresses at most, nothing like a mistyped wide CIDR.
+ * in-memory host×port expansion before scanning even starts. This is an
+ * absolute, non-overridable ceiling to bound memory/time regardless of
+ * intent — see scanSize.ts's assertScanNotTooLarge for the separate,
+ * overridable "did you mean to scan this many targets" warning.
  */
 export function assertScanSize(entries: string[]): void {
-  const total = entries.reduce(
-    (sum, entry) => sum + (entry.includes('/') ? cidrHostCount(entry) : 1),
-    0,
-  );
+  const total = estimateHostCount(entries);
   if (total > MAX_SCAN_HOSTS) {
     throw new Error(
       `Scan target too large: ${total} hosts requested across ${entries.length} target(s) ` +

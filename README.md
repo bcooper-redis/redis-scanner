@@ -89,6 +89,7 @@ rscan serve
 | `--password <pass>` | — | Password to authenticate with. Used only for this scan — never logged, printed, or persisted anywhere |
 | `--format <format>` | `table` | Output format: `table`, `json`, `csv`, `ini`, or `xlsx` — the same shapes the Web UI's Results page exports, now available straight from the CLI |
 | `--json` | off | Shorthand for `--format json`. Kept for backward compatibility; an explicit `--format` wins if both are given |
+| `--force` | off | Proceed even if the scan targets more than 5,000 host:port combinations (hosts × ports) — see [Troubleshooting](#troubleshooting) |
 
 Progress and the final summary are written to stderr; results are written to stdout, so you can pipe just the data regardless of format — `csv`/`ini` are text, `xlsx` is binary, both write cleanly through a redirect:
 
@@ -99,7 +100,7 @@ rscan scan -c 10.0.0.0/24 --format ini > config.ini
 rscan scan -c 10.0.0.0/24 --format xlsx > results.xlsx
 ```
 
-Exits `0` on a completed scan (including zero instances found) and `1` on a usage/input error (invalid CIDR, invalid port spec, `--username` without `--password`, or a CIDR range too large to scan — see [Troubleshooting](#troubleshooting)).
+Exits `0` on a completed scan (including zero instances found) and `1` on a usage/input error (invalid CIDR, invalid port spec, `--username` without `--password`, a CIDR range too large to scan, or an unusually large host×port total without `--force` — see [Troubleshooting](#troubleshooting)).
 
 ### `rscan credential-scan`
 
@@ -114,6 +115,7 @@ A different kind of scan: instead of sweeping a range and optionally authenticat
 | `--tls-skip-verify` | off | Skip TLS certificate verification (needed for self-signed certs) |
 | `--format <format>` | `table` | Output format: `table`, `json`, `csv`, `ini`, or `xlsx` |
 | `--json` | off | Shorthand for `--format json`. Kept for backward compatibility; an explicit `--format` wins if both are given |
+| `--force` | off | Proceed even if the file has more than 5,000 targets — see [Troubleshooting](#troubleshooting) |
 
 ```bash
 rscan credential-scan -f known-hosts.csv --json > results.json
@@ -140,6 +142,8 @@ The server is entirely local — it doesn't call out to any external service. Bi
 ## Web UI guide
 
 Open the address `rscan serve` prints (default `http://localhost:3000`). Six links in the top nav:
+
+Starting a scan (Discover or Credential Scan) whose host×port total is over 5,000 shows a **Large scan** dialog with a Proceed/Cancel choice instead of starting immediately — the CLI equivalent of `--force` (see [Troubleshooting](#troubleshooting)).
 
 - **Discover** — configure and start a scan: targets (CIDR ranges, bare IPs, or hostnames, one per line — hostnames are resolved via DNS and every resolved address is scanned), ports, timeout, concurrency, TLS options, and optional credentials for this scan only. Any target line may end in `:port` (e.g. `redis.example.com:6380`, or `10.0.0.0/24:6380`) to scan just that target on that port instead of the shared Ports field. Submitting takes you to Results. Non-credential fields are remembered for the rest of the browser tab's session (via `sessionStorage`), so navigating to Results and back doesn't lose what you typed — closing the tab or browser clears it.
   - **Upload CSV** — load targets from a CSV file instead of typing them: one target per line, `host` or `host,port` (a header row is skipped automatically). The file is read entirely in the browser and never uploaded to the server; it just replaces the Targets field, encoding each row with a port as `host:port` so that row is scanned on exactly its own port rather than every port seen in the file. It applies the same Timeout/Concurrency/TLS/credentials fields to every target — there's no way to give individual targets their own credentials via this form; that's what Credential Scan (below) is for.
@@ -198,6 +202,8 @@ Redis Discovery does a TCP connect scan, then — on open ports — a short, fix
 **A live Redis reports as "not Redis."** — If you're scanning through a restrictive ACL, confirm the account can at least run `INFO` (PING alone being denied is handled correctly and won't cause this). A closed port or a non-RESP service on that port will also show this way — that's by design.
 
 **"Scan target too large: N hosts requested... (max 65536)."** — Your combined CIDR ranges exceed the safety cap. Scan a smaller or more specific range, or run multiple scans.
+
+**"This scan targets an estimated N host:port combinations... Re-run with --force to proceed anyway."** — Above (host count) × (port count) totaling more than 5,000, `rscan scan`/`credential-scan` refuse to run unless you pass `--force`, so an oversized port range (e.g. `-p 1-10000` against even a single host) doesn't run unnoticed. The Web UI shows the same warning as a dialog with a Proceed button instead of a flag. This is a heads-up, not a hard limit — it's always safe to `--force` through it once you've confirmed the target count is what you meant.
 
 **"Could not resolve hostname ... ENOTFOUND" or the scan just fails when using a hostname target.** — The whole scan is rejected if any one hostname target fails to resolve, the same way an invalid CIDR is rejected. Double-check the spelling and that it resolves from this machine (`nslookup <hostname>` or `dig <hostname>`). Hostnames resolve to IPv4 addresses only (A records) — a host with only an IPv6 (AAAA) record won't resolve, since scanning is IPv4-only throughout.
 
