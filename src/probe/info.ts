@@ -31,9 +31,10 @@ export interface ParsedInfo {
  */
 export function parseInfo(raw: string): ParsedInfo {
   const fields = parseFields(raw);
+  const product = detectProduct(fields);
   return {
-    product: detectProduct(fields),
-    version: fields.get('redis_version') ?? null,
+    product,
+    version: parseVersion(product, fields),
     mode: normaliseMode(fields.get('redis_mode')),
     os: fields.get('os') ?? null,
     uptimeSeconds: parseOptionalInt(fields.get('uptime_in_seconds')),
@@ -92,6 +93,21 @@ function detectProduct(fields: Map<string, string>): RedisProduct {
     return 'redis';
   }
   return 'unknown';
+}
+
+/**
+ * Valkey's redis_version is fixed at the Redis release it forked from
+ * (7.2.4) for wire-protocol compatibility signaling — it never reflects
+ * Valkey's own release, which is reported separately as valkey_version
+ * (verified live: a Valkey 9.1.0 instance reports redis_version:7.2.4,
+ * valkey_version:9.1.0). Falls back to redis_version for a Valkey build old
+ * enough not to report valkey_version at all.
+ */
+function parseVersion(product: RedisProduct, fields: Map<string, string>): string | null {
+  if (product === 'valkey') {
+    return fields.get('valkey_version') ?? fields.get('redis_version') ?? null;
+  }
+  return fields.get('redis_version') ?? null;
 }
 
 function normaliseMode(raw: string | undefined): RedisMode | null {

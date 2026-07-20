@@ -77,6 +77,20 @@ uptime_in_seconds:7200
 role:master
 `.trim();
 
+// redis_version is Valkey's fixed Redis-compatibility marker, not its own
+// release — verified live against a real Valkey 9.1.0 instance (see
+// src/probe/info.ts's parseVersion).
+const VALKEY_WITH_OWN_VERSION = `
+# Server
+redis_version:7.2.4
+server_name:valkey
+valkey_version:9.1.0
+redis_mode:standalone
+os:Linux 6.10.14-linuxkit aarch64
+uptime_in_seconds:196
+role:master
+`.trim();
+
 const CLUSTER_NODE = `
 # Server
 redis_version:7.2.0
@@ -190,6 +204,16 @@ describe('parseInfo — version', () => {
 
   it('returns null for empty input', () => {
     expect(parseInfo(EMPTY).version).toBeNull();
+  });
+
+  it('falls back to redis_version for a valkey instance with no valkey_version field', () => {
+    expect(parseInfo(VALKEY).version).toBe('8.0.0');
+  });
+
+  it('prefers valkey_version over redis_version when both are present', () => {
+    const info = parseInfo(VALKEY_WITH_OWN_VERSION);
+    expect(info.product).toBe('valkey');
+    expect(info.version).toBe('9.1.0');
   });
 });
 
